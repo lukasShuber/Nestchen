@@ -2,12 +2,13 @@
 import { useState } from "preact/hooks";
 import { zonedNow } from "../../shared/dates";
 import { LIST_KINDS } from "../../shared/types";
-import type { Claim, Item, List, ListKind, User } from "../../shared/types";
+import type { Claim, Item, List, ListKind, TagGroup } from "../../shared/types";
 import { ApiError, api, errorText } from "../lib/api";
 import { useLoad } from "../lib/hooks";
 import { t, tn } from "../lib/i18n";
 import { hostOf, phoneDigits, safeUrl, telUrl, whatsappUrl } from "../lib/links";
 import { Link, navigate } from "../lib/router";
+import { store } from "../lib/storage";
 import {
   Avatar,
   Button,
@@ -29,6 +30,8 @@ import { Icon } from "../ui/icons";
 import { Sheet, SheetActions, confirmDialog } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { DueBadge, KIND_EMOJI, Page, parseQuickAdd } from "./common";
+import { AttrChips, AttrFilterBar, AttrPills, matches, todoOrder } from "./todoTags";
+import type { Filter } from "./todoTags";
 import { useFamily } from "./context";
 
 export function ListsPage() {
@@ -88,30 +91,28 @@ export function ListsPage() {
 
 const CHECKABLE: ListKind[] = ["todo", "shopping", "gifts"];
 
-function sortItems(kind: ListKind, items: Item[]): Item[] {
+function sortItems(kind: ListKind, items: Item[], groups: TagGroup[], today: string): Item[] {
   const byPos = (a: Item, b: Item) => a.position - b.position || a.id - b.id;
   const list = [...items];
-  if (kind === "todo") {
-    return list.sort(
-      (a, b) =>
-        Number(a.done) - Number(b.done) ||
-        (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999") ||
-        b.priority - a.priority ||
-        byPos(a, b),
-    );
-  }
+  if (kind === "todo") return list.sort(todoOrder(groups, today));
   if (kind === "wishlist") return list.sort((a, b) => Number(a.done) - Number(b.done) || b.priority - a.priority || byPos(a, b));
   if (kind === "contacts") return list.sort((a, b) => a.title.localeCompare(b.title));
   return list.sort((a, b) => Number(a.done) - Number(b.done) || byPos(a, b));
 }
 
 export function ListPage({ id }: { id: number }) {
-  const { users, settings } = useFamily();
+  const { settings } = useFamily();
+  const groups = settings.todoTags;
   const { data, error, reload, setData } = useLoad(() => api<{ list: List; items: Item[] }>(`/admin/lists/${id}`), [id]);
   const [text, setText] = useState("");
   const [adding, setAdding] = useState(false);
   const [tag, setTag] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
+  const [filter, setFilterState] = useState<Filter>(() => store.get<Filter>(`nest.filter.${id}`, {}));
+  const setFilter = (f: Filter) => {
+    setFilterState(f);
+    store.set(`nest.filter.${id}`, f);
+  };
   const [editing, setEditing] = useState<Item | null>(null);
   const [editList, setEditList] = useState(false);
   const today = zonedNow(settings.timezone).date;
@@ -130,19 +131,45 @@ export function ListPage({ id }: { id: number }) {
   const hasDone = list.kind !== "contacts" && list.kind !== "notes";
   const doneCount = items.filter((i) => i.done).length;
   const tags = [...new Map(items.flatMap((i) => i.tags).map((tg) => [tg.toLowerCase(), tg])).values()].sort();
+  const isTodo = list.kind === "todo";
+  const activeFilter = isTodo ? filter : {};
   const visible = sortItems(
     list.kind,
-    items.filter((i) => (showDone || !i.done || !hasDone) && (!tag || i.tags.some((x) => x.toLowerCase() === tag.toLowerCase()))),
+    items.filter(
+      (i) =>
+        (showDone || !i.done || !hasDone) &&
+        (!tag || i.tags.some((x) => x.toLowerCase() === tag.toLowerCase())) &&
+        matches(i.attrs, groups, activeFilter),
+    ),
+    groups,
+    today,
+  );
+  const filtering = isTodo && Object.keys(filter).length > 0;
+  const tagChips = tags.length > 0 && (
+    <div class="chips" role="group" aria-label={t("item.tags")}>
+      <Chip class="chip-all" active={!tag} onClick={() => setTag(null)}>
+        {t("common.all")}
+      </Chip>
+      {tags.map((tg) => {
+        const on = tag?.toLowerCase() === tg.toLowerCase();
+        return (
+          <Chip key={tg} active={on} onClick={() => setTag(on ? null : tg)}>
+            #{tg}
+          </Chip>
+        );
+      })}
+    </div>
   );
 
   const add = async (e: Event) => {
     e.preventDefault();
-    const parsed = parseQuickAdd(text, users);
+    const parsed = parseQuickAdd(text, isTodo ? groups : []);
     if (!parsed.title) return;
     setAdding(true);
     try {
-      const body: Record<string, unknown> = { title: parsed.title, tags: parsed.tags, priority: parsed.priority, url: parsed.url };
-      if (list.kind === "todo") body.assigneeId = parsed.assigneeId;
+      const body: Record<string, unknown> = { title: parsed.title, tags: parsed.tags, url: parsed.url };
+      if (isTodo) body.attrs = parsed.attrs;
+      else if (parsed.important) body.priority = 1;
       const r = await api<{ item: Item }>(`/admin/lists/${id}/items`, { body });
       setData({ ...data, items: [...items, r.item] });
       setText("");
@@ -199,30 +226,35 @@ export function ListPage({ id }: { id: number }) {
           {t("common.add")}
         </Button>
       </form>
-      {list.kind === "todo" && <p class="field-hint quick-hint">{t("lists.quickAddHint")}</p>}
-
-      {tags.length > 0 && (
-        <div class="chips">
-          <Chip active={!tag} onClick={() => setTag(null)}>
-            {t("common.all")}
-          </Chip>
-          {tags.map((tg) => (
-            <Chip key={tg} active={tag?.toLowerCase() === tg.toLowerCase()} onClick={() => setTag(tag === tg ? null : tg)}>
-              #{tg}
-            </Chip>
-          ))}
-        </div>
+      {isTodo && <p class="field-hint quick-hint">{t("lists.quickAddHint")}</p>}
+      {isTodo && groups.length > 0 ? (
+        <AttrFilterBar groups={groups} items={items.filter((i) => showDone || !i.done)} filter={filter} onChange={setFilter}>
+          {tagChips && (
+            <div class="attr-filter-row">
+              <span class="attr-filter-label">{t("item.tags")}</span>
+              {tagChips}
+            </div>
+          )}
+        </AttrFilterBar>
+      ) : (
+        tagChips
       )}
 
       {visible.length ? (
         <div class={cls("card items", `items-${list.kind}`)}>
           {visible.map((item) => (
-            <ItemRow key={item.id} item={item} list={list} users={users} today={today} onToggle={() => toggle(item)} onOpen={() => setEditing(item)} />
+            <ItemRow key={item.id} item={item} list={list} groups={groups} today={today} onToggle={() => toggle(item)} onOpen={() => setEditing(item)} />
           ))}
         </div>
       ) : (
         <div class="card">
-          <Empty emoji={list.emoji || KIND_EMOJI[list.kind]} title={items.length ? t("lists.emptyFilter") : t("lists.empty")} />
+          <Empty emoji={list.emoji || KIND_EMOJI[list.kind]} title={items.length ? t("lists.emptyFilter") : t("lists.empty")}>
+            {filtering && (
+              <button type="button" class="text-btn center" onClick={() => setFilter({})}>
+                {t("lists.clearFilter")}
+              </button>
+            )}
+          </Empty>
         </div>
       )}
 
@@ -251,7 +283,7 @@ export function ListPage({ id }: { id: number }) {
   );
 }
 
-function ItemRow({ item, list, users, today, onToggle, onOpen }: { item: Item; list: List; users: User[]; today: string; onToggle: () => void; onOpen: () => void }) {
+function ItemRow({ item, list, groups, today, onToggle, onOpen }: { item: Item; list: List; groups: TagGroup[]; today: string; onToggle: () => void; onOpen: () => void }) {
   const { settings } = useFamily();
   const link = item.url ? safeUrl(item.url) : null;
   const open = (e: KeyboardEvent) => {
@@ -312,18 +344,19 @@ function ItemRow({ item, list, users, today, onToggle, onOpen }: { item: Item; l
     );
   }
 
-  const assignee = users.find((u) => u.id === item.assigneeId);
+  const isTodo = list.kind === "todo";
   const taken = (item.claims ?? []).reduce((sum, c) => sum + c.quantity, 0);
   return (
-    <div class={cls("item", item.done && "is-done", item.priority > 0 && "is-important")} role="button" tabIndex={0} onClick={onOpen} onKeyDown={open}>
+    <div class={cls("item", item.done && "is-done", !isTodo && item.priority > 0 && "is-important")} role="button" tabIndex={0} onClick={onOpen} onKeyDown={open}>
       {CHECKABLE.includes(list.kind) && <Check checked={item.done} onChange={onToggle} label={item.title} />}
       <div class="item-main">
         <div class="item-title">
-          {item.priority > 0 && <span class="prio">{list.kind === "wishlist" ? "♥" : "!"}</span>}
+          {!isTodo && item.priority > 0 && <span class="prio">{list.kind === "wishlist" ? "♥" : "!"}</span>}
           {item.title}
           {item.quantity > 1 && list.kind !== "wishlist" && <span class="qty">×{item.quantity}</span>}
         </div>
         <div class="item-meta">
+          {isTodo && <AttrPills attrs={item.attrs} groups={groups} />}
           {list.kind === "gifts" && item.person && <span>🎁 {item.person}</span>}
           {item.dueDate && <DueBadge date={item.dueDate} today={today} done={item.done} />}
           {list.kind === "wishlist" && (
@@ -340,7 +373,6 @@ function ItemRow({ item, list, users, today, onToggle, onOpen }: { item: Item; l
           {item.notes && list.kind !== "wishlist" && <span class="item-note-preview">{item.notes.split("\n")[0]}</span>}
         </div>
       </div>
-      {assignee && <Avatar user={assignee} size={26} />}
     </div>
   );
 }
@@ -364,7 +396,8 @@ function ItemSheet({ item, list, onClose, onSaved }: { item: Item | null; list: 
 }
 
 function ItemForm({ item, list, onClose, onSaved }: { item: Item; list: List; onClose: () => void; onSaved: () => void }) {
-  const { users } = useFamily();
+  const { settings } = useFamily();
+  const groups = settings.todoTags;
   const k = list.kind;
   const { data: all } = useLoad(() => api<{ lists: List[] }>("/admin/lists"), []);
   const [title, setTitle] = useState(item.title);
@@ -375,7 +408,7 @@ function ItemForm({ item, list, onClose, onSaved }: { item: Item; list: List; on
   const [priority, setPriority] = useState(item.priority > 0);
   const [tags, setTags] = useState(item.tags.join(", "));
   const [dueDate, setDueDate] = useState(item.dueDate ?? "");
-  const [assigneeId, setAssigneeId] = useState(item.assigneeId ? String(item.assigneeId) : "");
+  const [attrs, setAttrs] = useState<Record<string, string>>(item.attrs ?? {});
   const [phone, setPhone] = useState(item.phone);
   const [person, setPerson] = useState(item.person);
   const [done, setDone] = useState(item.done);
@@ -399,7 +432,7 @@ function ItemForm({ item, list, onClose, onSaved }: { item: Item; list: List; on
           priority,
           tags: tags.split(/[,#]/).map((s) => s.trim()).filter(Boolean),
           dueDate: dueDate || null,
-          assigneeId: assigneeId ? Number(assigneeId) : null,
+          ...(k === "todo" ? { attrs } : {}),
           phone,
           person,
           done,
@@ -447,19 +480,25 @@ function ItemForm({ item, list, onClose, onSaved }: { item: Item; list: List; on
           <Input value={person} onValue={setPerson} maxLength={80} />
         </Field>
       )}
-      {k === "todo" && (
-        <div class="grid-2">
-          <Field label={t("item.due")}>
-            <Input type="date" value={dueDate} onValue={setDueDate} />
-          </Field>
-          <Field label={t("item.assignee")}>
-            <Select
-              value={assigneeId}
-              onValue={setAssigneeId}
-              options={[{ value: "", label: t("item.nobody") }, ...users.map((u) => ({ value: String(u.id), label: u.displayName }))]}
+      {k === "todo" &&
+        groups.map((g) => (
+          <Field group key={g.id} label={g.name}>
+            <AttrChips
+              group={g}
+              value={attrs[g.id]}
+              onChange={(v) => {
+                const next = { ...attrs };
+                if (v) next[g.id] = v;
+                else delete next[g.id];
+                setAttrs(next);
+              }}
             />
           </Field>
-        </div>
+        ))}
+      {k === "todo" && (
+        <Field label={t("item.due")}>
+          <Input type="date" value={dueDate} onValue={setDueDate} />
+        </Field>
       )}
       {(k === "wishlist" || k === "shopping") && (
         <div class="grid-2">
@@ -486,9 +525,7 @@ function ItemForm({ item, list, onClose, onSaved }: { item: Item; list: List; on
           <Input value={tags} onValue={setTags} maxLength={300} />
         </Field>
       )}
-      {(k === "todo" || k === "wishlist") && (
-        <Switch checked={priority} onChange={setPriority} label={k === "wishlist" ? t("item.favorite") : t("item.priority")} />
-      )}
+      {k === "wishlist" && <Switch checked={priority} onChange={setPriority} label={t("item.favorite")} />}
       {k === "gifts" && <Switch checked={done} onChange={setDone} label={t("item.thanked")} />}
       {(k === "todo" || k === "shopping") && <Switch checked={done} onChange={setDone} label={t("item.done")} />}
       {k === "wishlist" && <Switch checked={done} onChange={setDone} label={t("item.notNeeded")} />}

@@ -1331,3 +1331,84 @@ button.slot:hover { border-color: var(--line-2); }
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 [data-theme="dark"] .stepper .icon-btn { background: var(--line); }
+
+/* ==========================================================================
+   To-do attributes (who / priority / custom) – text stays in ink colours,
+   the option colour only tints the pill and its dot.
+   ========================================================================== */
+
+:root {
+  --tc-sage: #5b9479;
+  --tc-sky: #5b91c9;
+  --tc-peach: #de8566;
+  --tc-lavender: #8e7cc9;
+  --tc-butter: #cc9f2f;
+  --tc-rose: #d27494;
+  --tc-red: #d0473b;
+  --tc-gray: #9a929f;
+}
+[data-theme="dark"] {
+  --tc-sage: #7fb89c;
+  --tc-sky: #7aa9dc;
+  --tc-peach: #e89a80;
+  --tc-lavender: #a597dc;
+  --tc-butter: #d9b04f;
+  --tc-rose: #e090ab;
+  --tc-red: #e76a5e;
+  --tc-gray: #8f8799;
+}
+.tc-sage { --tc: var(--tc-sage); }
+.tc-sky { --tc: var(--tc-sky); }
+.tc-peach { --tc: var(--tc-peach); }
+.tc-lavender { --tc: var(--tc-lavender); }
+.tc-butter { --tc: var(--tc-butter); }
+.tc-rose { --tc: var(--tc-rose); }
+.tc-red { --tc: var(--tc-red); }
+.tc-gray { --tc: var(--tc-gray); }
+
+.attr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 9px 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tc) 16%, var(--surface));
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.attr-pill::before, .attr-dot { content: ""; display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--tc); }
+.attr-chip.is-active { border-color: var(--tc); background: color-mix(in srgb, var(--tc) 18%, var(--surface)); color: var(--ink); }
+.chip-count { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--bg-2); color: var(--ink-3); font-size: 0.72rem; font-weight: 800; text-align: center; }
+.attr-filter { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.attr-filter-row { display: flex; align-items: center; gap: 10px; }
+.attr-filter-label { flex: none; width: 78px; color: var(--ink-3); font-size: 0.82rem; font-weight: 800; }
+.todo-main { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.todo-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.todo-meta:empty { display: none; }
+
+.tag-group { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-2); }
+.tag-group-head { display: flex; align-items: center; gap: 8px; }
+.tag-group-head .input { font-weight: 800; }
+.tag-options { display: flex; flex-direction: column; gap: 6px; }
+.tag-option { display: flex; align-items: center; gap: 6px; }
+.tag-option .input { flex: 1; min-width: 0; min-height: 40px; padding: 6px 12px; }
+.tag-option .select-wrap { flex: 0 0 150px; }
+.tag-option .select { min-height: 40px; padding: 6px 34px 6px 10px; }
+.tag-option .icon-btn { width: 34px; height: 34px; }
+.color-swatch { flex: none; width: 28px; height: 28px; padding: 0; border: 3px solid var(--surface); border-radius: 50%; background: var(--tc); box-shadow: 0 0 0 1.5px var(--line-2); }
+
+@media (max-width: 520px) {
+  .attr-filter { gap: 6px; padding: 10px 12px; }
+  .attr-filter-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .attr-filter-label { width: auto; }
+  .attr-filter .chips { gap: 6px; }
+  .attr-filter .chip { min-height: 32px; padding: 0 10px; gap: 5px; font-size: 0.85rem; }
+  /* no room for "Alle" on phones: tapping the active chip again clears it */
+  .attr-filter .chip-all { display: none; }
+  .tag-options { gap: 10px; }
+  .tag-option { flex-wrap: wrap; }
+  /* the account picker goes on its own line, indented under the option it belongs to */
+  .tag-option .select-wrap { flex: 1 1 calc(100% - 34px); order: 5; margin-left: 34px; }
+}

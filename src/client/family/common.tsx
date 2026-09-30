@@ -2,7 +2,7 @@
 import type { ComponentChildren } from "preact";
 import { diffDays } from "../../shared/dates";
 import { CATEGORY_EMOJI } from "../../shared/types";
-import type { ListKind, Occurrence, Slot, User, Visit } from "../../shared/types";
+import type { ListKind, Occurrence, Slot, TagGroup, Visit } from "../../shared/types";
 import { dayMonth, dayShort, relDay, timeRange } from "../lib/format";
 import { t, tn } from "../lib/i18n";
 import { hostOf } from "../lib/links";
@@ -171,25 +171,34 @@ export function DueBadge({ date, today, done }: { date: string; today: string; d
   );
 }
 
-/** "Windeln kaufen #dm @Mama !" → title, tags, assignee, priority (and a pasted link). */
-export function parseQuickAdd(text: string, users: User[]) {
+/**
+ * "Windeln kaufen #dm @Lukas !hoch" → title, free tags, attributes (who / priority), a pasted link.
+ * "!" alone sets the most important priority; "!word" / "@word" match option labels by their start.
+ */
+export function parseQuickAdd(text: string, groups: TagGroup[]) {
   let s = ` ${text} `;
   const tags: string[] = [];
   s = s.replace(/\s#([\p{L}\p{N}_-]{1,32})(?=\s)/gu, (_, tag: string) => {
     tags.push(tag);
     return " ";
   });
-  let assigneeId: number | null = null;
-  s = s.replace(/\s@([\p{L}\p{N}._-]{1,32})(?=\s)/gu, (match, name: string) => {
-    const low = name.toLowerCase();
-    const user = users.find((u) => u.username === low || u.displayName.toLowerCase().startsWith(low));
-    if (!user) return match;
-    assigneeId = user.id;
+  const attrs: Record<string, string> = {};
+  const who = groups.find((g) => g.role === "who");
+  const prio = groups.find((g) => g.role === "priority");
+  const find = (g: TagGroup | undefined, word: string) =>
+    g?.options.find((o) => o.label.toLowerCase().startsWith(word.toLowerCase()));
+  s = s.replace(/\s@([\p{L}\p{N}._-]{1,32})(?=\s)/gu, (match, word: string) => {
+    const o = find(who, word);
+    if (!o || !who) return match;
+    attrs[who.id] = o.id;
     return " ";
   });
-  let priority = 0;
-  s = s.replace(/\s!(?=\s)/g, () => {
-    priority = 1;
+  let important = false;
+  s = s.replace(/\s!([\p{L}\p{N}_-]{0,32})(?=\s)/gu, (match, word: string) => {
+    const o = word ? find(prio, word) : prio?.options[0];
+    if (word && !o) return match;
+    important = true;
+    if (o && prio) attrs[prio.id] = o.id;
     return " ";
   });
   let url = "";
@@ -199,5 +208,5 @@ export function parseQuickAdd(text: string, users: User[]) {
   });
   let title = s.replace(/\s+/g, " ").trim();
   if (!title && url) title = hostOf(url);
-  return { title, tags, assigneeId: assigneeId as number | null, priority, url };
+  return { title, tags, attrs, important, url };
 }

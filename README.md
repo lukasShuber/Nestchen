@@ -49,10 +49,10 @@ It runs for free on Cloudflare (Workers + D1 database). The code lives on GitHub
 | 🏠 **Home** | Greeting, baby's age, open requests, the next 7 days, urgent to-dos, thank-you reminder. |
 | 🗓️ **Calendar** | Appointments in categories (doctor, Kita, paperwork, family, other), all-day and multi-day events, repeating events (daily … yearly), visits and open slots as layers, month and list view. |
 | 👥 **Visits** | Requests inbox (confirm / decline / reschedule), planned visits, visiting times (create many at once, e.g. "Sat + Sun 15–17 h for 3 weeks, in 1-hour slots"), past visits. After confirming, one tap sends a pre-written WhatsApp / SMS / e-mail in the guest's language. |
-| ✅ **Lists** | To-dos (due date, who's on it), shopping, wishlists (public or private), contacts (tap to call / WhatsApp), gifts, notes. Quick add understands `#tag`, `@name` and `!` (important). |
+| ✅ **Lists** | To-dos with fixed labels – **who** (Lukas / Sandrine / Both), **priority** (high / mid / low) and your own – plus due date and free `#tags`; filter e.g. "high priority for Lukas" (remembered per list). Shopping, wishlists (public or private), contacts (tap to call / WhatsApp), gifts, notes. Quick add understands `#tag`, `@name` and `!` / `!high`. |
 | 🍼 **Feeding** | Start/stop with a live timer (synced between both phones), method (breast, breast with nipple shield, bottle, finger feeder), side with "other side next" suggestion, amount in ml, observations. Log or fix feeds afterwards. Statistics for 7/14/30 days: feeds per day, average duration, interval and longest break with trend vs. the period before, a daily chart, a 24-hour rhythm view, the split by method and a table. One-tap Start/Stop on the home screen. |
 | 🎀 **Thanks** | Who gave what, "received" ✓ and "thanked" ✓ – wishlist reservations appear automatically. |
-| ⚙️ **Settings** | Texts of the public page (German + English), what guests see, family code, calendar links, Google Calendar embed, notifications, accounts, JSON export. |
+| ⚙️ **Settings** | Texts of the public page (German + English), what guests see, family code, to-do labels, calendar links, Google Calendar embed, notifications, accounts, JSON export. |
 
 ---
 
@@ -114,6 +114,9 @@ In **Settings**:
 - **Public page:** site name, heading, welcome text, visitor guidelines, meal notes and gift notes – in German and English.
 - **Privacy:** set a family code if you like and share the "link including the code" via WhatsApp.
 - **Family:** the baby's birthday (only used for the age on your home screen) and your country code for WhatsApp links.
+- **To-do labels ("To-do-Merkmale"):** rename, recolour, reorder, add or remove the options of *Who* and *Priority*,
+  or add your own label (e.g. "Ort: Zuhause / Unterwegs"). Who-options are linked to accounts, so "Beide / Both" is
+  linked to all accounts. The defaults use your accounts' display names.
 - **Visits → Offer times:** add your first visiting times.
 - **Lists → Wishlist:** add what you still need.
 
@@ -141,7 +144,11 @@ From now on every `git push` to `main` redeploys automatically. Your data stays 
   (written in the guest's language). The guest also sees your note on their status link.
 - **Guest called you?** "Besuch eintragen / Add visit" enters a visit manually.
 - **Auto-confirm:** in Settings you can let requests for free slots be confirmed automatically.
-- **Quick add** in lists: `Windeln Gr. 2 #dm @Mama !` adds a to-do tagged *dm*, assigned to Mama, marked important.
+- **Quick add** in lists: `Windeln Gr. 2 #dm @Sandrine !hoch` adds a to-do tagged *dm*, for Sandrine, with high
+  priority. `@` and `!` match the start of a label (`@san`, `!mit`); a bare `!` means the top priority.
+- **Filter to-dos:** tap e.g. *Lukas* and *Hoch / High* above a to-do list. Filtering by a person also shows the
+  to-dos for *Beide / Both*. Tap an active chip again (or "Alle / All") to clear it. The home screen shows your own
+  to-dos, everything with top priority and whatever is due within a week.
 - **Wishlist:** tap an item to see who reserved it, mark gifts as received and thanked, or hide items
   that are no longer needed.
 - **Feeding at night:** open the app (home screen) → "Start · Brust · rechts" is already suggested →
@@ -226,7 +233,7 @@ npm run dev                      # http://localhost:5173 (Worker + database run 
 | Colours, fonts, spacing (light + dark) | CSS variables at the top of `src/client/styles.css` |
 | Icon / app name on the home screen | `public/icon.svg`, `public/*.png`, `public/*.webmanifest`, `index.html` |
 | Starter lists created with the first account | `SEED_LISTS` in `src/worker/db.ts` |
-| Database schema (auto-migrating) | `MIGRATIONS` in `src/worker/db.ts` – add a new array entry for changes |
+| Database schema (auto-migrating) | `MIGRATIONS` in `src/worker/db.ts` – append an entry (a list of SQL statements or an async function) for changes |
 | API | `src/worker/routes/*.ts` (public, auth, admin, calendar feeds) |
 | Pages | `src/client/public/*` (guests) and `src/client/family/*` (private area) |
 

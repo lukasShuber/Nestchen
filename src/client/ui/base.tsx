@@ -109,10 +109,22 @@ export function Textarea({ value, onValue, rows = 3, class: extra, ...rest }: Om
   );
 }
 
-export function Select<T extends string>({ value, onValue, options, class: extra }: { value: T; onValue: (v: T) => void; options: { value: T; label: string }[]; class?: string }) {
+export function Select<T extends string>({
+  value,
+  onValue,
+  options,
+  label,
+  class: extra,
+}: {
+  value: T;
+  onValue: (v: T) => void;
+  options: { value: T; label: string }[];
+  label?: string;
+  class?: string;
+}) {
   return (
     <div class={cls("select-wrap", extra)}>
-      <select class="select" value={value} onChange={(e) => onValue((e.currentTarget as HTMLSelectElement).value as T)}>
+      <select class="select" value={value} aria-label={label} onChange={(e) => onValue((e.currentTarget as HTMLSelectElement).value as T)}>
         {options.map((o) => (
           <option value={o.value} key={o.value}>
             {o.label}

@@ -7,18 +7,19 @@ import { babyAge, dayLong } from "../lib/format";
 import { useLoad } from "../lib/hooks";
 import { t, tn } from "../lib/i18n";
 import { Link } from "../lib/router";
-import { Avatar, Button, Check, Empty, ErrorBox, IconButton, Input, Loading } from "../ui/base";
+import { Button, Check, Empty, ErrorBox, IconButton, Input, Loading } from "../ui/base";
 import { Icon } from "../ui/icons";
 import { toast } from "../ui/toast";
 import { EventSheet } from "./Calendar";
 import { FeedingWidget } from "./Feeding";
 import type { EventSheetState } from "./Calendar";
 import { Agenda, DueBadge, Page, VisitRow, buildAgenda, parseQuickAdd } from "./common";
+import { AttrPills } from "./todoTags";
 import { useFamily } from "./context";
 import { SlotsSheet, VisitSheet } from "./Visits";
 
 export function Home() {
-  const { me, users, settings, refreshBadges } = useFamily();
+  const { me, settings, refreshBadges } = useFamily();
   const { data, error, reload, setData } = useLoad(() => api<HomeData>("/admin/home"), []);
   const [eventSheet, setEventSheet] = useState<EventSheetState>(null);
   const [visit, setVisit] = useState<Visit | null>(null);
@@ -41,11 +42,11 @@ export function Home() {
   const addTodo = async (e: Event) => {
     e.preventDefault();
     if (!data?.todoListId) return;
-    const parsed = parseQuickAdd(todo, users);
+    const parsed = parseQuickAdd(todo, settings.todoTags);
     if (!parsed.title) return;
     setAdding(true);
     try {
-      await api(`/admin/lists/${data.todoListId}/items`, { body: parsed });
+      await api(`/admin/lists/${data.todoListId}/items`, { body: { title: parsed.title, tags: parsed.tags, url: parsed.url, attrs: parsed.attrs } });
       setTodo("");
       reload();
     } catch (err) {
@@ -133,20 +134,18 @@ export function Home() {
             )}
             {data.todos.length ? (
               <ul class="todo-mini">
-                {data.todos.map((item) => {
-                  const who = users.find((u) => u.id === item.assigneeId);
-                  return (
-                    <li key={item.id}>
-                      <Check checked={false} onChange={() => finishTodo(item)} label={item.title} />
-                      <span class="todo-title">
-                        {item.priority > 0 && <span class="prio">!</span>}
-                        {item.title}
+                {data.todos.map((item) => (
+                  <li key={item.id}>
+                    <Check checked={false} onChange={() => finishTodo(item)} label={item.title} />
+                    <span class="todo-main">
+                      <span class="todo-title">{item.title}</span>
+                      <span class="todo-meta">
+                        <AttrPills attrs={item.attrs} groups={settings.todoTags} />
+                        {item.dueDate && <DueBadge date={item.dueDate} today={now.date} />}
                       </span>
-                      {item.dueDate && <DueBadge date={item.dueDate} today={now.date} />}
-                      {who && <Avatar user={who} size={24} />}
-                    </li>
-                  );
-                })}
+                    </span>
+                  </li>
+                ))}
               </ul>
             ) : (
               <p class="muted">{t("home.todosEmpty")}</p>

@@ -1,12 +1,12 @@
 // Private settings: public page texts, privacy, calendar, notifications, accounts, data.
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { TEXT_KEYS, USER_COLORS } from "../../shared/types";
-import type { Lang, Settings, Texts, User, UserColor } from "../../shared/types";
+import { TAG_COLORS, TEXT_KEYS, USER_COLORS } from "../../shared/types";
+import type { Lang, Settings, TagGroup, TagOption, Texts, User, UserColor } from "../../shared/types";
 import { api, errorText } from "../lib/api";
 import { getLang, t } from "../lib/i18n";
 import { LangSwitch, ThemeSelect } from "../prefs";
-import { Avatar, Button, CopyField, ErrorBox, Field, IconButton, Input, LinkButton, Segmented, Switch, Textarea, cls } from "../ui/base";
+import { Avatar, Button, CopyField, ErrorBox, Field, IconButton, Input, LinkButton, Segmented, Select, Switch, Textarea, cls } from "../ui/base";
 import { Icon } from "../ui/icons";
 import type { IconName } from "../ui/icons";
 import { confirmDialog } from "../ui/sheet";
@@ -61,6 +61,7 @@ export function SettingsPage() {
         <CalendarSettings />
         <NotifySettings />
         <FamilySettings />
+        <TodoTagSettings />
         <AccountSettings />
         <Section icon="sun" title={t("set.appearance")}>
           <div class="row between wrap">
@@ -476,6 +477,123 @@ function AccountSettings() {
           </Button>
         </div>
       </form>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------- to-do attributes
+
+const newId = () => Math.random().toString(36).slice(2, 10);
+const nextColor = (c: TagOption["color"]) => TAG_COLORS[(TAG_COLORS.indexOf(c) + 1) % TAG_COLORS.length];
+
+function TodoTagSettings() {
+  const { settings, users } = useFamily();
+  const { save, busy } = useSave();
+  const [groups, setGroups] = useState<TagGroup[]>(settings.todoTags);
+
+  const setGroup = (gi: number, patch: Partial<TagGroup>) => setGroups(groups.map((g, i) => (i === gi ? { ...g, ...patch } : g)));
+  const setOptions = (gi: number, options: TagOption[]) => setGroup(gi, { options });
+  const setOption = (gi: number, oi: number, patch: Partial<TagOption>) =>
+    setOptions(gi, groups[gi].options.map((o, j) => (j === oi ? { ...o, ...patch } : o)));
+  const moveOption = (gi: number, oi: number, dir: -1 | 1) => {
+    const options = [...groups[gi].options];
+    const target = oi + dir;
+    if (target < 0 || target >= options.length) return;
+    [options[oi], options[target]] = [options[target], options[oi]];
+    setOptions(gi, options);
+  };
+  const addGroup = () =>
+    setGroups([
+      ...groups,
+      {
+        id: newId(),
+        name: t("set.tagNewGroup"),
+        role: "custom",
+        options: [
+          { id: newId(), label: `${t("set.tagNewOption")} 1`, color: "sky" },
+          { id: newId(), label: `${t("set.tagNewOption")} 2`, color: "peach" },
+        ],
+      },
+    ]);
+  const removeGroup = async (gi: number) => {
+    if (!(await confirmDialog(t("set.tagRemoveGroupConfirm", { name: groups[gi].name }), { danger: true, ok: t("set.tagRemoveGroup") }))) return;
+    setGroups(groups.filter((_, i) => i !== gi));
+  };
+
+  // Which account(s) a who-option stands for: none, one person, or everyone.
+  const accountOf = (o: TagOption) =>
+    !o.users?.length ? "" : o.users.length > 1 && users.every((u) => o.users!.includes(u.id)) ? "all" : `u${o.users[0]}`;
+  const accountOptions = [
+    { value: "", label: t("set.tagAccountNone") },
+    ...users.map((u) => ({ value: `u${u.id}`, label: u.displayName })),
+    ...(users.length > 1 ? [{ value: "all", label: t("set.tagAccountAll") }] : []),
+  ];
+  const usersFor = (v: string) => (v === "all" ? users.map((u) => u.id) : v ? [Number(v.slice(1))] : []);
+
+  return (
+    <Section icon="tag" title={t("set.todoTags")}>
+      <p class="field-hint">{t("set.todoTagsHint")}</p>
+      {groups.map((g, gi) => (
+        <div class="tag-group" key={g.id}>
+          <div class="tag-group-head">
+            <Input value={g.name} onValue={(v) => setGroup(gi, { name: v })} maxLength={30} aria-label={t("set.tagName")} />
+            {g.role === "custom" && <IconButton icon="trash" label={t("set.tagRemoveGroup")} onClick={() => removeGroup(gi)} />}
+          </div>
+          <span class="field-hint">{t(`set.tagRole.${g.role}`)}</span>
+          <div class="tag-options">
+            {g.options.map((o, oi) => (
+              <div class="tag-option" key={o.id}>
+                <button
+                  type="button"
+                  class={cls("color-swatch", `tc-${o.color}`)}
+                  title={t("set.tagColor")}
+                  aria-label={t("set.tagColor")}
+                  onClick={() => setOption(gi, oi, { color: nextColor(o.color) })}
+                />
+                <Input value={o.label} onValue={(v) => setOption(gi, oi, { label: v })} maxLength={30} aria-label={t("set.tagOptionLabel")} />
+                {g.role === "who" && (
+                  <Select
+                    value={accountOf(o)}
+                    onValue={(v) => setOption(gi, oi, { users: usersFor(v) })}
+                    options={accountOptions}
+                    label={t("set.tagAccount")}
+                  />
+                )}
+                <IconButton icon="chevronUp" size={18} label={t("set.tagUp")} disabled={oi === 0} onClick={() => moveOption(gi, oi, -1)} />
+                <IconButton icon="chevronDown" size={18} label={t("set.tagDown")} disabled={oi === g.options.length - 1} onClick={() => moveOption(gi, oi, 1)} />
+                <IconButton
+                  icon="x"
+                  size={18}
+                  label={t("set.tagRemoveOption")}
+                  disabled={g.options.length <= 1}
+                  onClick={() => setOptions(gi, g.options.filter((_, j) => j !== oi))}
+                />
+              </div>
+            ))}
+            {g.options.length < 12 && (
+              <button
+                type="button"
+                class="text-btn"
+                onClick={() => setOptions(gi, [...g.options, { id: newId(), label: t("set.tagNewOption"), color: TAG_COLORS[g.options.length % TAG_COLORS.length] }])}
+              >
+                + {t("set.tagAddOption")}
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+      <div class="row between wrap">
+        {groups.length < 6 ? (
+          <Button variant="secondary" size="sm" icon="plus" onClick={addGroup}>
+            {t("set.tagAddGroup")}
+          </Button>
+        ) : (
+          <span />
+        )}
+        <Button busy={busy} icon="check" onClick={() => save({ todoTags: groups })}>
+          {t("common.save")}
+        </Button>
+      </div>
     </Section>
   );
 }

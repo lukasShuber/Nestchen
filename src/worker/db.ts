@@ -11,6 +11,8 @@ import type {
   List,
   ListKind,
   Settings,
+  TagGroup,
+  TagOption,
   Slot,
   SlotBooking,
   Texts,
@@ -19,7 +21,9 @@ import type {
 } from "../shared/types";
 import { parseJson } from "./util";
 
-const MIGRATIONS: string[][] = [
+type Migration = string[] | ((db: D1Database) => Promise<void>);
+
+const MIGRATIONS: Migration[] = [
   [
     `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,6 +159,22 @@ const MIGRATIONS: string[][] = [
     )`,
     `CREATE INDEX IF NOT EXISTS feedings_started ON feedings(started_at)`,
   ],
+  // v3: explicit to-do attributes (who / priority / custom). Old assignee + "!" are carried over
+  // (and cleared, so running this step twice – e.g. from two Worker instances at once – changes nothing).
+  async (db) => {
+    try {
+      await db.prepare("ALTER TABLE items ADD COLUMN attrs TEXT NOT NULL DEFAULT '{}'").run();
+    } catch (err) {
+      if (!/duplicate column/i.test(String(err))) throw err;
+    }
+    const todo = "list_id IN (SELECT id FROM lists WHERE kind = 'todo')";
+    await db.batch([
+      db.prepare(
+        `UPDATE items SET attrs = json_set(attrs, '$.who', 'u' || assignee_id), assignee_id = NULL WHERE assignee_id IS NOT NULL AND ${todo}`,
+      ),
+      db.prepare(`UPDATE items SET attrs = json_set(attrs, '$.prio', 'high'), priority = 0 WHERE priority > 0 AND ${todo}`),
+    ]);
+  },
 ];
 
 let ready: Promise<void> | null = null;
@@ -175,14 +195,16 @@ async function migrate(db: D1Database) {
   const row = await db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").first<{ value: string }>();
   const current = row ? Number(row.value) : 0;
   for (let v = current; v < MIGRATIONS.length; v++) {
-    await db.batch([
-      ...MIGRATIONS[v].map((sql) => db.prepare(sql)),
-      db
-        .prepare(
-          "INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        )
-        .bind(String(v + 1)),
-    ]);
+    const step = MIGRATIONS[v];
+    const setVersion = db
+      .prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .bind(String(v + 1));
+    if (typeof step === "function") {
+      await step(db);
+      await setVersion.run();
+    } else {
+      await db.batch([...step.map((sql) => db.prepare(sql)), setVersion]);
+    }
   }
 }
 
@@ -247,7 +269,7 @@ export function texts(s: SettingsMap): Texts {
 
 export const lang = (s: SettingsMap): Lang => (s.default_lang === "en" ? "en" : "de");
 
-export function settingsForAdmin(s: SettingsMap): Settings {
+export function settingsForAdmin(s: SettingsMap, users: User[]): Settings {
   return {
     siteName: s.site_name,
     defaultLang: lang(s),
@@ -263,7 +285,37 @@ export function settingsForAdmin(s: SettingsMap): Settings {
     birthDate: s.birth_date,
     icsToken: s.ics_token,
     texts: texts(s),
+    todoTags: todoTagGroups(s, users),
   };
+}
+
+/** The to-do attributes – saved ones, or sensible defaults built from the accounts. */
+export function todoTagGroups(s: SettingsMap, users: User[]): TagGroup[] {
+  const saved = parseJson<TagGroup[] | null>(s.todo_tags, null);
+  if (Array.isArray(saved)) return saved;
+  const de = lang(s) === "de";
+  const everyone: TagOption[] =
+    users.length > 1
+      ? [{ id: "both", label: users.length > 2 ? (de ? "Alle" : "Everyone") : de ? "Beide" : "Both", color: "lavender", users: users.map((u) => u.id) }]
+      : [];
+  return [
+    {
+      id: "who",
+      name: de ? "Wer" : "Who",
+      role: "who",
+      options: [...users.map((u) => ({ id: `u${u.id}`, label: u.displayName, color: u.color, users: [u.id] })), ...everyone],
+    },
+    {
+      id: "prio",
+      name: de ? "Priorität" : "Priority",
+      role: "priority",
+      options: [
+        { id: "high", label: de ? "Hoch" : "High", color: "red" },
+        { id: "mid", label: de ? "Mittel" : "Medium", color: "butter" },
+        { id: "low", label: de ? "Niedrig" : "Low", color: "gray" },
+      ],
+    },
+  ];
 }
 
 export async function saveSettings(db: D1Database, entries: [string, string][]) {
@@ -435,6 +487,7 @@ export const mapItem = (r: Row): Item => ({
   quantity: r.quantity,
   priority: r.priority,
   tags: parseJson(r.tags, []),
+  attrs: parseJson(r.attrs, {}),
   done: !!r.done,
   dueDate: r.due_date ?? null,
   assigneeId: r.assignee_id ?? null,

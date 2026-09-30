@@ -3,8 +3,8 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { REPEATS, addDays, diffDays, isValidTimeZone, zonedNow } from "../../shared/dates";
 import { MAX_SLOTS_PER_BATCH, generateSlots } from "../../shared/slots";
-import { CATEGORIES, LIST_KINDS, TEXT_KEYS, USER_COLORS } from "../../shared/types";
-import type { HomeData, ThanksEntry } from "../../shared/types";
+import { CATEGORIES, LIST_KINDS, TAG_COLORS, TAG_ROLES, TEXT_KEYS, USER_COLORS } from "../../shared/types";
+import type { HomeData, TagGroup, TagOption, ThanksEntry } from "../../shared/types";
 import { currentUser, hashPassword, validPassword, validUsername, verifyPassword } from "../auth";
 import {
   loadSettings,
@@ -16,6 +16,7 @@ import {
   saveSettings,
   settingsForAdmin,
   textKey,
+  todoTagGroups,
 } from "../db";
 import { notify, notifyText } from "../notify";
 import { occurrencesBetween, slotsBetween } from "../queries";
@@ -87,13 +88,10 @@ app.get("/home", async (c) => {
       )
       .bind(now.date, addDays(now.date, 14)),
     db.prepare("SELECT * FROM visits WHERE status = 'pending' ORDER BY created_at LIMIT 30"),
-    db
-      .prepare(
-        `SELECT i.*, l.title AS list_title, l.emoji AS list_emoji FROM items i JOIN lists l ON l.id = i.list_id
-         WHERE l.kind = 'todo' AND i.done = 0 AND ((i.due_date IS NOT NULL AND i.due_date <= ?) OR i.assignee_id = ? OR i.priority > 0)
-         ORDER BY i.due_date IS NULL, i.due_date, i.priority DESC, i.id LIMIT 12`,
-      )
-      .bind(addDays(now.date, 7), me.id),
+    db.prepare(
+      `SELECT i.*, l.title AS list_title, l.emoji AS list_emoji FROM items i JOIN lists l ON l.id = i.list_id
+       WHERE l.kind = 'todo' AND i.done = 0 ORDER BY i.position, i.id LIMIT 500`,
+    ),
     db.prepare(
       `SELECT
         (SELECT COUNT(*) FROM items i JOIN lists l ON l.id = i.list_id WHERE l.kind = 'todo' AND i.done = 0) AS open_todos,
@@ -102,12 +100,32 @@ app.get("/home", async (c) => {
     ),
     db.prepare("SELECT id FROM lists WHERE kind = 'todo' ORDER BY position, id LIMIT 1"),
   ]);
+  // Home shows what matters to me: due within a week, mine (incl. "both"), or top priority.
+  const groups = todoTagGroups(s, await allUsers(db));
+  const who = groups.find((g) => g.role === "who");
+  const prio = groups.find((g) => g.role === "priority");
+  const mine = new Set(who?.options.filter((o) => o.users?.includes(me.id)).map((o) => o.id));
+  const rank = (attrs: Record<string, string>) => {
+    const i = prio ? prio.options.findIndex((o) => o.id === attrs[prio.id]) : -1;
+    return i < 0 ? 99 : i;
+  };
+  const soon = addDays(now.date, 7);
+  const relevant = todos.results
+    .map((r) => ({ ...mapItem(r), listTitle: r.list_title as string, listEmoji: r.list_emoji as string }))
+    .filter((i) => (i.dueDate && i.dueDate <= soon) || (who && mine.has(i.attrs[who.id])) || rank(i.attrs) === 0)
+    .sort(
+      (a, b) =>
+        Number(!!b.dueDate && b.dueDate < now.date) - Number(!!a.dueDate && a.dueDate < now.date) ||
+        rank(a.attrs) - rank(b.attrs) ||
+        (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"),
+    )
+    .slice(0, 12);
   const data: HomeData = {
     now,
     events: await occurrencesBetween(db, now.date, addDays(now.date, 7)),
     visits: visits.results.map(mapVisit),
     pending: pending.results.map(mapVisit),
-    todos: todos.results.map((r) => ({ ...mapItem(r), listTitle: r.list_title, listEmoji: r.list_emoji })),
+    todos: relevant,
     openTodos: counts.results[0]?.open_todos ?? 0,
     thanksOpen: counts.results[0]?.thanks_open ?? 0,
     birthDate: s.birth_date,
@@ -501,6 +519,7 @@ async function readItemPatch(db: D1Database, body: Record<string, unknown>) {
       throw invalid("assigneeId");
     });
   }
+  if ("attrs" in body) u.attrs = readAttrs(body.attrs);
   if ("listId" in body) {
     u.list_id = int(body.listId, "listId", 1, MAX_ID);
     await mustExist(db, "lists", u.list_id as number).catch(() => {
@@ -689,8 +708,54 @@ function parseGcalEmbed(v: unknown, tz: string): string {
   return u.toString();
 }
 
+const ATTR_ID = /^[A-Za-z0-9_-]{1,24}$/;
+
+/** { attributeId: optionId } for a to-do; empty values are dropped. */
+function readAttrs(v: unknown): string {
+  if (v == null) return "{}";
+  if (typeof v !== "object" || Array.isArray(v)) throw invalid("attrs");
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(v).slice(0, 12)) {
+    if (!ATTR_ID.test(key) || value == null || value === "") continue;
+    if (typeof value !== "string" || !ATTR_ID.test(value)) throw invalid("attrs");
+    out[key] = value;
+  }
+  return JSON.stringify(out);
+}
+
+function readTagGroups(v: unknown, users: { id: number }[]): TagGroup[] {
+  if (!Array.isArray(v) || v.length > 6) throw invalid("todoTags");
+  const userIds = new Set(users.map((u) => u.id));
+  const groupIds = new Set<string>();
+  const roles = new Set<string>();
+  return v.map((raw) => {
+    const g = (raw ?? {}) as Record<string, unknown>;
+    const id = typeof g.id === "string" && ATTR_ID.test(g.id) ? g.id : null;
+    if (!id || groupIds.has(id)) throw invalid("todoTags");
+    groupIds.add(id);
+    const role = oneOf(g.role, "todoTags", TAG_ROLES, "custom");
+    if (role !== "custom" && roles.has(role)) throw invalid("todoTags");
+    roles.add(role);
+    if (!Array.isArray(g.options) || !g.options.length || g.options.length > 12) throw invalid("todoTags", "options");
+    const optionIds = new Set<string>();
+    const options: TagOption[] = g.options.map((rawOpt) => {
+      const o = (rawOpt ?? {}) as Record<string, unknown>;
+      const oid = typeof o.id === "string" && ATTR_ID.test(o.id) ? o.id : null;
+      if (!oid || optionIds.has(oid)) throw invalid("todoTags");
+      optionIds.add(oid);
+      const option: TagOption = { id: oid, label: str(o.label, "todoTags", 30, true), color: oneOf(o.color, "todoTags", TAG_COLORS, "gray") };
+      if (role === "who" && Array.isArray(o.users)) {
+        option.users = o.users.filter((u): u is number => Number.isInteger(u) && userIds.has(u as number));
+      }
+      return option;
+    });
+    return { id, name: str(g.name, "todoTags", 30, true), role, options };
+  });
+}
+
 app.get("/settings", async (c) => {
-  return c.json({ settings: settingsForAdmin(c.get("settings")), users: await allUsers(c.env.DB) });
+  const users = await allUsers(c.env.DB);
+  return c.json({ settings: settingsForAdmin(c.get("settings"), users), users });
 });
 
 app.put("/settings", async (c) => {
@@ -726,6 +791,7 @@ app.put("/settings", async (c) => {
   }
   if ("gcalEmbed" in b) set("gcal_embed", parseGcalEmbed(b.gcalEmbed, tz));
   if ("birthDate" in b) set("birth_date", date(b.birthDate, "birthDate") ?? "");
+  if ("todoTags" in b) set("todo_tags", JSON.stringify(readTagGroups(b.todoTags, await allUsers(c.env.DB))));
   if (b.texts && typeof b.texts === "object") {
     const t = b.texts as Record<string, Record<string, unknown> | undefined>;
     for (const key of TEXT_KEYS) {
@@ -736,7 +802,7 @@ app.put("/settings", async (c) => {
     }
   }
   await saveSettings(c.env.DB, entries);
-  return c.json({ settings: settingsForAdmin(await loadSettings(c.env.DB)) });
+  return c.json({ settings: settingsForAdmin(await loadSettings(c.env.DB), await allUsers(c.env.DB)) });
 });
 
 app.post("/settings/rotate-ics", async (c) => {

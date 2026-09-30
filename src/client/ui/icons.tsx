@@ -11,6 +11,7 @@ const PATHS = {
   chevronLeft: <path d="m14.5 18-6-6 6-6" />,
   chevronRight: <path d="m9.5 18 6-6-6-6" />,
   chevronDown: <path d="m6 9.5 6 6 6-6" />,
+  chevronUp: <path d="m6 14.5 6-6 6 6" />,
   trash: <><path d="M4 7h16M10 11v6M14 11v6" /><path d="M6 7l.9 12.2A2 2 0 0 0 8.9 21h6.2a2 2 0 0 0 2-1.8L18 7" /><path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7" /></>,
   edit: <><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></>,
   external: <><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" /></>,

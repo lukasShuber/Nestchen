@@ -190,6 +190,8 @@ export interface Item {
   person: string;
   position: number;
   createdAt: number;
+  /** To-do attributes: attribute id → option id (e.g. { who: "u1", prio: "high" }). */
+  attrs: Record<string, string>;
   claims?: Claim[];
 }
 
@@ -208,6 +210,7 @@ export interface Settings {
   birthDate: string;
   icsToken: string;
   texts: Texts;
+  todoTags: TagGroup[];
 }
 
 export interface HomeData {
@@ -272,4 +275,27 @@ export interface FeedingData {
   feedings: Feeding[];
   running: Feeding | null;
   last: Feeding | null;
+}
+
+// ---------------------------------------------------------------- to-do attributes
+
+export const TAG_COLORS = ["sage", "sky", "peach", "lavender", "butter", "rose", "red", "gray"] as const;
+export type TagColor = (typeof TAG_COLORS)[number];
+/** "who" options can be linked to accounts; "priority" options are ordered most → least important. */
+export type TagRole = "who" | "priority" | "custom";
+export const TAG_ROLES: readonly TagRole[] = ["who", "priority", "custom"];
+
+export interface TagOption {
+  id: string;
+  label: string;
+  color: TagColor;
+  /** who-options only: the accounts this option stands for ("Beide" = both). */
+  users?: number[];
+}
+
+export interface TagGroup {
+  id: string;
+  name: string;
+  role: TagRole;
+  options: TagOption[];
 }
