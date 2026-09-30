@@ -23,7 +23,7 @@ export function MorePage() {
           <span>{t("nav.settings")}</span>
           <Icon name="chevronRight" size={18} class="muted" />
         </Link>
-        <a href="/" target="_blank" rel="noopener" class="menu-item">
+        <a href="/?view=public" target="_blank" rel="noopener" class="menu-item">
           <Icon name="globe" />
           <span>{t("nav.publicPage")}</span>
           <Icon name="external" size={18} class="muted" />

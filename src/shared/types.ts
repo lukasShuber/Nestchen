@@ -26,6 +26,8 @@ export interface Proposal {
 
 export interface PublicInfo {
   locked: boolean;
+  /** True when the visitor is logged in as a parent (they are sent to the private area). */
+  parent?: boolean;
   siteName: string;
   defaultLang: Lang;
   texts?: Texts;

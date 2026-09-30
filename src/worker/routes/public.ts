@@ -59,9 +59,14 @@ const guard = createMiddleware<AppEnv>(async (c, next) => {
 
 const origin = (url: string) => new URL(url).origin;
 
-app.get("/info", (c) => {
+app.get("/info", async (c) => {
   const s = c.get("settings");
-  const info: PublicInfo = { locked: !c.get("unlocked"), siteName: s.site_name, defaultLang: lang(s) };
+  const info: PublicInfo = {
+    locked: !c.get("unlocked"),
+    parent: !!(await currentUser(c)),
+    siteName: s.site_name,
+    defaultLang: lang(s),
+  };
   if (!info.locked) {
     info.texts = texts(s);
     info.features = {

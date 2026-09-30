@@ -169,7 +169,7 @@ function Shell({ path }: { path: string }) {
           ))}
         </nav>
         <div class="sidebar-foot">
-          <a href="/" target="_blank" rel="noopener" class="nav-link nav-link-small">
+          <a href="/?view=public" target="_blank" rel="noopener" class="nav-link nav-link-small">
             <Icon name="globe" size={18} />
             <span>{t("nav.publicPage")}</span>
           </a>

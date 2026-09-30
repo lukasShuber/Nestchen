@@ -4,7 +4,7 @@ import type { Lang, PublicInfo, PublicVisit, SlotKind } from "../../shared/types
 import { api, errorText } from "../lib/api";
 import { dayShort, timeRange } from "../lib/format";
 import { getLang, otherLang, t } from "../lib/i18n";
-import { Link } from "../lib/router";
+import { Link, navigate } from "../lib/router";
 import { store } from "../lib/storage";
 import { LangSwitch, ThemeToggle, usePrefs } from "../prefs";
 import { Button, ErrorBox, Field, Input, Lines, Loading, StatusBadge } from "../ui/base";
@@ -33,10 +33,15 @@ export function PublicApp({ path }: { path: string }) {
   const [info, setInfo] = useState<PublicInfo | null>(null);
   const [failed, setFailed] = useState<unknown>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (first = false) => {
     setFailed(null);
     try {
       const data = await api<PublicInfo>("/public/info");
+      // Logged-in parents go straight to their private area ("/?view=public" shows them the guests' page).
+      if (first && data.parent && location.pathname === "/" && !new URLSearchParams(location.search).has("view")) {
+        navigate("/family", true);
+        return;
+      }
       setInfo(data);
       setDefaultLang(data.defaultLang);
       document.title = data.siteName;
@@ -53,17 +58,17 @@ export function PublicApp({ path }: { path: string }) {
       history.replaceState(null, "", location.pathname + location.search);
       api("/public/unlock", { body: { code: decodeURIComponent(m[1]) } })
         .catch(() => {})
-        .finally(load);
+        .finally(() => load());
       return true;
     };
-    if (!unlockFromHash()) load();
+    if (!unlockFromHash()) load(true);
     window.addEventListener("hashchange", unlockFromHash);
     return () => window.removeEventListener("hashchange", unlockFromHash);
   }, []);
 
   const status = path.match(/^\/r\/([A-Za-z0-9_-]{16,64})\/?$/);
   let content;
-  if (failed) content = <ErrorBox error={errorText(failed)} onRetry={load} />;
+  if (failed) content = <ErrorBox error={errorText(failed)} onRetry={() => load(true)} />;
   else if (!info) content = <Loading />;
   else if (status) content = <StatusPage token={status[1]} />;
   else if (info.locked) content = <GuestLock onUnlocked={load} />;

@@ -98,7 +98,7 @@ function PublicSettings() {
       icon="globe"
       title={t("set.public")}
       extra={
-        <LinkButton href="/" external size="sm" variant="ghost" icon="external">
+        <LinkButton href="/?view=public" external size="sm" variant="ghost" icon="external">
           {t("set.viewPublic")}
         </LinkButton>
       }

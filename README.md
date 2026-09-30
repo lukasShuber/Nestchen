@@ -131,6 +131,9 @@ From now on every `git push` to `main` redeploys automatically. Your data stays 
 
 ## Everyday use
 
+- **Logged in = straight to your area:** when you're logged in, opening the site (or the home-screen app)
+  goes directly to the private area. To see what guests see, use "Öffentliche Seite / Public page"
+  (it opens `/?view=public`). Guests' status links are never redirected.
 - **Offer times in bulk:** Visits → "Zeiten anbieten / Offer times" → date range, weekdays, time window,
   optionally split into 30/45/60/… minute slots, groups per slot. A preview shows exactly what gets created.
 - **Answer a request:** open it, pick one of the suggested times if needed, write a short note, then
