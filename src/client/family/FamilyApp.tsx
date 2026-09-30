@@ -17,8 +17,11 @@ import { FeedingPage } from "./Feeding";
 import { Home } from "./Home";
 import { ListPage, ListsPage } from "./Lists";
 import { MorePage } from "./More";
+import { PumpingPage } from "./Pumping";
 import { SettingsPage } from "./Settings";
+import { SleepPage } from "./Sleep";
 import { ThanksPage } from "./Thanks";
+import { TRACKER_PATHS, babyHref } from "./trackerUi";
 import { VisitsPage } from "./Visits";
 
 export function FamilyApp({ path }: { path: string }) {
@@ -129,9 +132,12 @@ interface NavItem {
   icon: IconName;
   label: string;
   badge?: number;
+  /** Also active on these paths (the "Baby" tab covers all trackers). */
+  match?: string[];
 }
 
-const isActive = (path: string, href: string) => (href === "/family" ? path === "/family" || path === "/family/" : path.startsWith(href));
+const isActive = (path: string, n: NavItem) =>
+  n.match ? n.match.some((h) => path.startsWith(h)) : n.href === "/family" ? path === "/family" || path === "/family/" : path.startsWith(n.href);
 
 function Shell({ path }: { path: string }) {
   const { me, badges, refreshBadges, logout, settings } = useFamily();
@@ -139,13 +145,19 @@ function Shell({ path }: { path: string }) {
     refreshBadges();
   }, [path]);
 
-  const main: NavItem[] = [
-    { href: "/family", icon: "home", label: t("nav.home") },
+  const home: NavItem = { href: "/family", icon: "home", label: t("nav.home") };
+  const trackers: NavItem[] = [
     { href: "/family/feeding", icon: "bottle", label: t("nav.feeding") },
+    { href: "/family/pumping", icon: "drop", label: t("nav.pumping") },
+    { href: "/family/sleep", icon: "moon", label: t("nav.sleep") },
+  ];
+  const organize: NavItem[] = [
     { href: "/family/calendar", icon: "calendar", label: t("nav.calendar") },
     { href: "/family/visits", icon: "visits", label: t("nav.visits"), badge: badges.pending },
     { href: "/family/lists", icon: "list", label: t("nav.lists") },
   ];
+  // Phones: one "Baby" tab for all trackers (they switch between each other at the top).
+  const tabs: NavItem[] = [home, { href: babyHref(), icon: "baby", label: t("nav.baby"), match: TRACKER_PATHS }, ...organize];
   const extra: NavItem[] = [
     { href: "/family/thanks", icon: "gift", label: t("nav.thanks"), badge: badges.thanks },
     { href: "/family/settings", icon: "settings", label: t("nav.settings") },
@@ -160,8 +172,8 @@ function Shell({ path }: { path: string }) {
           <span>{settings.siteName}</span>
         </Link>
         <nav class="sidebar-nav">
-          {[...main, ...extra].map((n) => (
-            <Link key={n.href} href={n.href} class={cls("nav-link", isActive(path, n.href) && "is-active")}>
+          {[home, ...trackers, ...organize, ...extra].map((n) => (
+            <Link key={n.href} href={n.href} class={cls("nav-link", isActive(path, n) && "is-active")}>
               <Icon name={n.icon} />
               <span>{n.label}</span>
               {!!n.badge && <span class="count">{n.badge}</span>}
@@ -188,8 +200,8 @@ function Shell({ path }: { path: string }) {
         <Route path={path} />
       </main>
       <nav class="tabbar" aria-label="Navigation">
-        {main.map((n) => (
-          <Link key={n.href} href={n.href} class={cls("tab", isActive(path, n.href) && "is-active")}>
+        {tabs.map((n) => (
+          <Link key={n.label} href={n.href} class={cls("tab", isActive(path, n) && "is-active")}>
             <span class="tab-icon">
               <Icon name={n.icon} size={22} />
               {!!n.badge && <span class="tab-badge">{n.badge}</span>}
@@ -216,6 +228,10 @@ function Route({ path }: { path: string }) {
   switch (p) {
     case "/family/feeding":
       return <FeedingPage />;
+    case "/family/pumping":
+      return <PumpingPage />;
+    case "/family/sleep":
+      return <SleepPage />;
     case "/family/calendar":
       return <CalendarPage />;
     case "/family/visits":

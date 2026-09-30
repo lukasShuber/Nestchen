@@ -10,7 +10,9 @@ import type {
   Lang,
   List,
   ListKind,
+  Pumping,
   Settings,
+  Sleep,
   TagGroup,
   TagOption,
   Slot,
@@ -175,6 +177,33 @@ const MIGRATIONS: Migration[] = [
       db.prepare(`UPDATE items SET attrs = json_set(attrs, '$.prio', 'high'), priority = 0 WHERE priority > 0 AND ${todo}`),
     ]);
   },
+  // v4: pumping and sleep trackers (same shape as feedings).
+  [
+    `CREATE TABLE IF NOT EXISTS pumpings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      started_at INTEGER NOT NULL,
+      ended_at INTEGER,
+      side TEXT NOT NULL DEFAULT 'both',
+      amount_ml INTEGER,
+      notes TEXT NOT NULL DEFAULT '',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS pumpings_started ON pumpings(started_at)`,
+    `CREATE TABLE IF NOT EXISTS sleeps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      started_at INTEGER NOT NULL,
+      ended_at INTEGER,
+      kind TEXT NOT NULL DEFAULT 'nap',
+      place TEXT,
+      notes TEXT NOT NULL DEFAULT '',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS sleeps_started ON sleeps(started_at)`,
+  ],
 ];
 
 let ready: Promise<void> | null = null;
@@ -515,6 +544,26 @@ export const mapFeeding = (r: Row): Feeding => ({
   method: r.method,
   side: r.side ?? null,
   amountMl: r.amount_ml ?? null,
+  notes: r.notes,
+  createdBy: r.created_by ?? null,
+});
+
+export const mapPumping = (r: Row): Pumping => ({
+  id: r.id,
+  startedAt: r.started_at,
+  endedAt: r.ended_at ?? null,
+  side: r.side,
+  amountMl: r.amount_ml ?? null,
+  notes: r.notes,
+  createdBy: r.created_by ?? null,
+});
+
+export const mapSleep = (r: Row): Sleep => ({
+  id: r.id,
+  startedAt: r.started_at,
+  endedAt: r.ended_at ?? null,
+  kind: r.kind,
+  place: r.place ?? null,
   notes: r.notes,
   createdBy: r.created_by ?? null,
 });

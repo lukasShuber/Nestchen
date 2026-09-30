@@ -52,6 +52,8 @@ await call("/admin/users/me", { color: "sage" }, "PATCH");
 await call("/admin/settings", { birthDate: day(-23) }, "PUT");
 if (!alreadySeeded) await seedEverything();
 await seedFeedings();
+await seedPumpings();
+await seedSleeps();
 console.log(`Seeded ${BASE} ✓  (log in at ${BASE}/family as papa / dev-password)`);
 
 async function seedEverything() {
@@ -124,7 +126,7 @@ await call("/admin/thanks/gifts", { title: "Selbstgestrickte Mütze", person: "N
 // --- feeding tracker: two weeks of realistic feeds (only if there are none yet)
 async function seedFeedings() {
   const existing = await call("/admin/feedings?days=30");
-  if (existing.feedings.length > 3) return;
+  if (existing.sessions.length > 3) return;
   const tz = "Europe/Berlin";
   let seed = 42;
   const rnd = () => {
@@ -162,6 +164,82 @@ async function seedFeedings() {
     const interval = night ? between(180, 250) + dayIndex * 6 : between(135, 195);
     t += interval * MIN;
   }
+}
+
+// --- pumping: ten days, mostly both sides, more milk in the morning (only if there's nothing yet)
+async function seedPumpings() {
+  const existing = await call("/admin/pumpings?days=30");
+  if (existing.sessions.length > 3) return;
+  const tz = "Europe/Berlin";
+  const rnd = random(7);
+  const between = (a, b) => a + (b - a) * rnd();
+  const MIN = 60_000;
+  const first = zonedToUtc(day(-10), "06:10", tz);
+  const until = Date.now() - 90 * MIN;
+  const notes = ["viel Milch", "wenig Milch", "in den Kühlschrank", "eingefroren"];
+  for (let t = first; t < until; ) {
+    const dayIndex = (t - first) / 86_400_000;
+    const hour = localHour(t, tz);
+    const both = rnd() < 0.8;
+    const base = hour < 9 ? 135 : hour < 15 ? 110 : 90;
+    const body = {
+      side: both ? "both" : rnd() < 0.5 ? "left" : "right",
+      amountMl: Math.max(10, Math.round((base * (both ? 1 : 0.55) + dayIndex * 3 + between(-20, 20)) / 5) * 5),
+      notes: rnd() < 0.2 ? notes[Math.floor(rnd() * notes.length)] : "",
+      startedAt: Math.round(t),
+      endedAt: Math.round(t + between(12, 22) * MIN),
+    };
+    if (body.endedAt >= until) break;
+    await call("/admin/pumpings", body);
+    const night = hour >= 22 || hour < 5;
+    t += (night ? between(240, 330) : between(160, 220)) * MIN;
+  }
+}
+
+// --- sleep: two weeks of naps and nights with a few wake-ups (only if there's nothing yet)
+async function seedSleeps() {
+  const existing = await call("/admin/sleeps?days=30");
+  if (existing.sessions.length > 3) return;
+  const tz = "Europe/Berlin";
+  const rnd = random(99);
+  const between = (a, b) => a + (b - a) * rnd();
+  const pick = (xs) => xs[Math.floor(rnd() * xs.length)];
+  const MIN = 60_000;
+  const until = Date.now() - 40 * MIN;
+  const post = async (body) => {
+    if (body.endedAt < until) await call("/admin/sleeps", { ...body, startedAt: Math.round(body.startedAt), endedAt: Math.round(body.endedAt) });
+  };
+  for (let i = -14; i <= 0; i++) {
+    const growth = i + 14;
+    // Naps between morning and early evening.
+    let t = zonedToUtc(day(i), "08:30", tz) + between(0, 50) * MIN;
+    for (let n = 0; n < 4 && localHour(t, tz) < 18; n++) {
+      const len = between(35, 110);
+      await post({ kind: "nap", place: pick(["bed", "stroller", "carrier", "arms", "bed", "car"]), notes: rnd() < 0.2 ? pick(["unruhig", "gut geschlafen", "mit Schnuller"]) : "", startedAt: t, endedAt: t + len * MIN });
+      t += (len + between(70, 120)) * MIN;
+    }
+    // The night: 1–3 wake-ups; the first stretch gets longer as the baby grows.
+    let start = zonedToUtc(day(i), "19:45", tz) + between(0, 80) * MIN;
+    const end = zonedToUtc(day(i + 1), "06:00", tz) + between(0, 75) * MIN;
+    const wakes = rnd() < 0.3 ? 1 : rnd() < 0.75 ? 2 : 3;
+    for (let w = 0; w <= wakes && start < end; w++) {
+      const left = (end - start) / MIN;
+      const len = w === wakes ? left : w === 0 ? Math.min(left - 60, between(150, 210) + growth * 5) : between(100, 160);
+      await post({ kind: "night", place: pick(["bed", "bed", "bed", "parents"]), notes: w === 0 && rnd() < 0.3 ? "beim Stillen eingeschlafen" : "", startedAt: start, endedAt: start + len * MIN });
+      start += (len + between(15, 40)) * MIN;
+    }
+  }
+}
+
+function random(seed) {
+  return () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+}
+
+function localHour(ms, tz) {
+  return Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", hourCycle: "h23" }).format(ms));
 }
 
 function zonedToUtc(date, time, tz) {

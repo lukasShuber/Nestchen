@@ -11,11 +11,13 @@ import { Button, Check, Empty, ErrorBox, IconButton, Input, Loading } from "../u
 import { Icon } from "../ui/icons";
 import { toast } from "../ui/toast";
 import { EventSheet } from "./Calendar";
-import { FeedingWidget } from "./Feeding";
+import { FeedingRow } from "./Feeding";
 import type { EventSheetState } from "./Calendar";
 import { Agenda, DueBadge, Page, VisitRow, buildAgenda, parseQuickAdd } from "./common";
 import { AttrPills } from "./todoTags";
 import { useFamily } from "./context";
+import { PumpingRow } from "./Pumping";
+import { SleepRow } from "./Sleep";
 import { SlotsSheet, VisitSheet } from "./Visits";
 
 export function Home() {
@@ -94,7 +96,11 @@ export function Home() {
         <Loading />
       ) : (
         <div class="home-grid">
-          <FeedingWidget />
+          <section class="card baby-card" aria-label={t("nav.baby")}>
+            <FeedingRow />
+            <SleepRow />
+            <PumpingRow />
+          </section>
           {data.pending.length > 0 && (
             <section class="card card-accent">
               <h2 class="card-title">

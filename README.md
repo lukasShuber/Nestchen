@@ -5,7 +5,8 @@ A small, private organiser for new parents – minimal, functional and a tiny bi
 - **Public page** for family & friends: see when a visit suits you, request a slot or suggest a time,
   sign up to bring a meal, and reserve gifts from your wishlist so nothing is bought twice.
 - **Private area** for the two of you: a calendar (paediatrician, Kita, paperwork, …) plus all visits,
-  a visits inbox, lists (to-dos, shopping, wishlists, contacts, gifts, notes) and a thank-you tracker.
+  a visits inbox, lists (to-dos, shopping, wishlists, contacts, gifts, notes), a thank-you tracker, and
+  trackers for feeding, pumping and sleep with statistics.
 - German and English, light and dark mode, works great on phones and can be added to the home screen.
 
 It runs for free on Cloudflare (Workers + D1 database). The code lives on GitHub, and every
@@ -46,11 +47,13 @@ It runs for free on Cloudflare (Workers + D1 database). The code lives on GitHub
 
 | | |
 |---|---|
-| 🏠 **Home** | Greeting, baby's age, open requests, the next 7 days, urgent to-dos, thank-you reminder. |
+| 🏠 **Home** | Greeting, baby's age, one-tap Start/Stop for feeding, sleep and pumping, open requests, the next 7 days, urgent to-dos, thank-you reminder. |
 | 🗓️ **Calendar** | Appointments in categories (doctor, Kita, paperwork, family, other), all-day and multi-day events, repeating events (daily … yearly), visits and open slots as layers, month and list view. |
 | 👥 **Visits** | Requests inbox (confirm / decline / reschedule), planned visits, visiting times (create many at once, e.g. "Sat + Sun 15–17 h for 3 weeks, in 1-hour slots"), past visits. After confirming, one tap sends a pre-written WhatsApp / SMS / e-mail in the guest's language. |
 | ✅ **Lists** | To-dos with fixed labels – **who** (Lukas / Sandrine / Both), **priority** (high / mid / low) and your own – plus due date and free `#tags`; filter e.g. "high priority for Lukas" (remembered per list). Shopping, wishlists (public or private), contacts (tap to call / WhatsApp), gifts, notes. Quick add understands `#tag`, `@name` and `!` / `!high`. |
 | 🍼 **Feeding** | Start/stop with a live timer (synced between both phones), method (breast, breast with nipple shield, bottle, finger feeder), side with "other side next" suggestion, amount in ml, observations. Log or fix feeds afterwards. Statistics for 7/14/30 days: feeds per day, average duration, interval and longest break with trend vs. the period before, a daily chart, a 24-hour rhythm view, the split by method and a table. One-tap Start/Stop on the home screen. |
+| 💧 **Pumping** | Start/stop with a live timer, side (left / right / both), the amount with a slider (plus − / + for 5 ml steps), observations (e.g. "into the fridge", "frozen"). Statistics: ml per day and per session, sessions per day, duration, interval and pumping time per day with trends, charts, rhythm view and a table. |
+| 🌙 **Sleep** | "Fell asleep" / "Woke up" with a live timer, day or night sleep (suggested by the time of day), where (crib, parents' bed, pram, carrier, in arms, car, elsewhere), observations. The history shows how long the baby was awake in between. Statistics: sleep per day, night and day sleep, naps per day, longest stretch and wake-ups per night with trends, a stacked day/night chart, where the baby slept, rhythm view and a table. |
 | 🎀 **Thanks** | Who gave what, "received" ✓ and "thanked" ✓ – wishlist reservations appear automatically. |
 | ⚙️ **Settings** | Texts of the public page (German + English), what guests see, family code, to-do labels, calendar links, Google Calendar embed, notifications, accounts, JSON export. |
 
@@ -151,8 +154,16 @@ From now on every `git push` to `main` redeploys automatically. Your data stays 
   to-dos, everything with top priority and whatever is due within a week.
 - **Wishlist:** tap an item to see who reserved it, mark gifts as received and thanked, or hide items
   that are no longer needed.
-- **Feeding at night:** open the app (home screen) → "Start · Brust · rechts" is already suggested →
-  tap Start, later Stop, then optionally tap a couple of observations. Forgot to press Start?
+- **Baby tab (phones):** feeding, pumping and sleep share one tab; switch between them at the top. The tab
+  remembers which one you used last. On a computer they're separate entries in the sidebar.
+- **Sleep:** tap "Eingeschlafen / Fell asleep" (day or night is picked from the time, the place from the last
+  sleep – change them if needed) and "Aufgewacht / Woke up" afterwards. If the baby wakes up at night and
+  sleeps again, just start a new one – the gaps count as wake-ups. For the statistics a day is its naps plus
+  the night after it, so Monday's night (even after midnight) counts for Monday.
+- **Pumping:** Start → Stop → set the amount with the slider → Fertig / Done. The home screen hides pumping
+  after two weeks without a session (it stays under Baby → Abpumpen).
+- **Feeding at night:** open the app (home screen) → "▶ Brust · rechts" is already suggested →
+  tap it, later Stop, then optionally tap a couple of observations. Forgot to press Start?
   "Mahlzeit nachtragen / Add a feed". Both parents see a running feed on their phones.
 
 ---

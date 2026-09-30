@@ -2,7 +2,7 @@
 // Deliberately a plain fixed overlay instead of the native <dialog> element: the dialog's
 // "top layer" has had rendering bugs on iPhones (backdrop shown, sheet invisible).
 import type { ComponentChildren } from "preact";
-import { useEffect, useId, useRef, useState } from "preact/hooks";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { t } from "../lib/i18n";
 import { Button, IconButton, cls } from "./base";
 
@@ -32,7 +32,9 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
   closeRef.current = onClose;
   const titleId = useId();
 
-  useEffect(() => {
+  // Layout effect: focus moves into the sheet before it's painted, so typing into a field right
+  // away can't lose its focus to the sheet a moment later.
+  useLayoutEffect(() => {
     if (!open) return;
     const id = nextId++;
     stack.push(id);

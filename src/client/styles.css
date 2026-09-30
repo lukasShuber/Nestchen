@@ -1205,7 +1205,7 @@ button.slot:hover { border-color: var(--line-2); }
 .chart .grid { stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
 .chart .tick { fill: var(--ink-3); font-family: var(--font); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .chart .value-label { fill: var(--ink-2); font-family: var(--font); font-size: 12px; font-weight: 800; }
-.chart .bar { fill: var(--feed); transition: opacity 0.15s; }
+.chart .bar { fill: var(--m, var(--feed)); transition: opacity 0.15s; }
 .chart .bar.is-hover { opacity: 0.72; }
 .chart .line { fill: none; stroke: var(--feed); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .chart .area { fill: var(--feed); opacity: 0.1; }
@@ -1247,8 +1247,8 @@ button.slot:hover { border-color: var(--line-2); }
 .rhythm-label { color: var(--ink-3); font-size: 0.75rem; font-weight: 750; white-space: nowrap; }
 .rhythm-track { position: relative; height: 16px; overflow: hidden; border-radius: 5px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
 .rhythm-night { position: absolute; top: 0; bottom: 0; background: var(--bg-2); }
-.rhythm-block { position: absolute; top: 3px; bottom: 3px; border-radius: 3px; background: var(--feed); outline: none; }
-.rhythm-block:hover, .rhythm-block:focus-visible { z-index: 1; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--feed); }
+.rhythm-block { position: absolute; top: 3px; bottom: 3px; border-radius: 3px; background: var(--m, var(--feed)); outline: none; }
+.rhythm-block:hover, .rhythm-block:focus-visible { z-index: 1; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--m, var(--feed)); }
 .rhythm-block.is-running { background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
 .rhythm-axis .rhythm-track { height: 14px; overflow: visible; background: none; box-shadow: none; }
 .rhythm-axis .rhythm-track span { position: absolute; transform: translateX(-50%); color: var(--ink-3); font-size: 0.7rem; font-weight: 700; }
@@ -1294,14 +1294,65 @@ button.slot:hover { border-color: var(--line-2); }
 .feed-pause { display: flex; align-items: center; gap: 10px; padding: 4px 18px; color: var(--ink-3); font-size: 0.76rem; font-weight: 650; white-space: nowrap; }
 .feed-pause::before, .feed-pause::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
-.home-grid > .feed-widget { grid-column: 1 / -1; }
-.feed-widget-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
-.feed-widget-head .card-title { margin: 0; }
-.feed-widget-body { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.feed-widget-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.feed-last { font-size: 1.05rem; font-weight: 800; }
-.feed-widget-timer { display: flex; align-items: center; gap: 10px; font-size: 2rem; font-weight: 850; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.feed-widget.is-running { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: linear-gradient(180deg, var(--accent-soft), var(--surface) 70%); }
+/* ---- Pumping & sleep (shared tracker pieces) ---- */
+
+/* Sleep: night blue / day ochre – validated pair for the light (#fff) and dark (#242129) surfaces. */
+:root { --sleep-night: #5b91c9; --sleep-day: #cc9f2f; }
+[data-theme="dark"] { --sleep-night: #5a92d2; --sleep-day: #a97f25; }
+.s-night { --m: var(--sleep-night); }
+.s-nap { --m: var(--sleep-day); }
+.sleep-control.is-running { border-color: color-mix(in srgb, var(--sleep-night) 40%, var(--line)); background: linear-gradient(180deg, color-mix(in srgb, var(--sleep-night) 14%, var(--surface)), var(--surface) 60%); }
+.sleep-control.is-running .feed-live { color: var(--ink-2); }
+.sleep-control.is-running .live-dot { background: var(--sleep-night); }
+
+/* Füttern · Abpumpen · Schlaf switch – only on phones (the sidebar has these links). */
+.tracker-switch { display: none; }
+
+/* Where the baby slept: one colour, largest first. */
+.rank-bars { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.rank-bars li { display: grid; grid-template-columns: minmax(84px, 150px) minmax(0, 1fr) 44px; align-items: center; gap: 10px; font-size: 0.88rem; }
+.rank-label { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.rank-track { height: 12px; }
+.rank-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--feed); }
+.rank-val { color: var(--ink-2); font-weight: 750; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Amount slider (ml). */
+.amount { gap: 8px; }
+.amount-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.amount-value { font-size: 1.9rem; font-weight: 850; line-height: 1; font-variant-numeric: tabular-nums; }
+.amount-value small { color: var(--ink-3); font-size: 0.95rem; font-weight: 750; }
+.amount-row { display: flex; align-items: center; gap: 10px; }
+.amount-step { flex: none; width: 44px; height: 44px; border: 1.5px solid var(--line-2); border-radius: 50%; background: var(--surface); color: var(--ink); font-size: 1.4rem; font-weight: 700; line-height: 1; }
+.amount-step:disabled { opacity: 0.4; }
+.amount-range { --track: 10px; flex: 1; min-width: 0; height: 44px; margin: 0; background: transparent; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.amount-range:focus { outline: none; }
+.amount-range::-webkit-slider-runnable-track { height: var(--track); border-radius: 999px; background: linear-gradient(to right, var(--primary) var(--pct), var(--line-2) var(--pct)); }
+.amount-range::-webkit-slider-thumb { width: 30px; height: 30px; margin-top: calc((var(--track) - 30px) / 2); border: 3px solid var(--surface); border-radius: 50%; background: var(--primary); box-shadow: 0 1px 4px rgba(40, 25, 10, 0.3); -webkit-appearance: none; appearance: none; }
+.amount-range::-moz-range-track { height: var(--track); border-radius: 999px; background: var(--line-2); }
+.amount-range::-moz-range-progress { height: var(--track); border-radius: 999px; background: var(--primary); }
+.amount-range::-moz-range-thumb { width: 24px; height: 24px; border: 3px solid var(--surface); border-radius: 50%; background: var(--primary); box-shadow: 0 1px 4px rgba(40, 25, 10, 0.3); }
+.amount-range.is-empty::-webkit-slider-thumb { background: var(--ink-3); }
+.amount-range.is-empty::-moz-range-thumb { background: var(--ink-3); }
+.amount-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--focus); }
+.amount-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px var(--focus); }
+.amount-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 24px; }
+
+/* Home: one card, one row per tracker. */
+.home-grid > .baby-card { grid-column: 1 / -1; }
+.baby-card { display: flex; flex-direction: column; padding-top: 6px; padding-bottom: 6px; }
+.trk-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.trk-row + .trk-row { border-top: 1px dashed var(--line-2); }
+.trk-row-link { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.trk-row-icon { display: grid; flex: none; place-items: center; width: 40px; height: 40px; border-radius: 14px; background: var(--primary-soft); color: var(--primary-soft-ink); }
+.trk-row-info { display: flex; flex-direction: column; min-width: 0; }
+.trk-row-title { display: flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 0.78rem; font-weight: 800; }
+.trk-row-main { font-size: 1.02rem; font-weight: 800; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.trk-row-sub { display: -webkit-box; overflow: hidden; color: var(--ink-3); font-size: 0.82rem; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.trk-row-link:hover .trk-row-main { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.trk-row-action { flex: none; }
+.trk-row .live-dot { width: 8px; height: 8px; }
+.trk-row.is-running .trk-row-icon { background: var(--accent-soft); color: var(--accent-ink); }
+.trk-row.is-running .trk-row-main { font-size: 1.3rem; }
 
 @media (max-width: 1000px) {
   .charts { grid-template-columns: minmax(0, 1fr); }
@@ -1310,6 +1361,8 @@ button.slot:hover { border-color: var(--line-2); }
   .feed-top { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 860px) {
+  .tracker-switch { display: flex; width: 100%; }
+  .tracker-switch .segment { flex: 1 1 0; min-width: 0; padding: 0 8px; text-decoration: none; }
   .tab-icon { width: 46px; }
   .tab { min-width: 0; font-size: 0.66rem; }
   .tab > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1318,7 +1371,13 @@ button.slot:hover { border-color: var(--line-2); }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 520px) {
-  .feed-widget-body > .btn { width: 100%; }
+  .baby-card { padding-right: 14px; padding-left: 14px; }
+  .trk-row { gap: 10px; }
+  .trk-row-link { gap: 10px; }
+  .trk-row-icon { width: 34px; height: 34px; border-radius: 12px; }
+  .trk-row-main { font-size: 0.96rem; }
+  .trk-row-action .btn { min-height: 42px; padding: 0 12px; font-size: 0.9rem; }
+  .rank-bars li { grid-template-columns: 96px minmax(0, 1fr) 40px; }
   .feed-time { min-width: 0; }
   .today-value { font-size: 1.15rem; }
 }

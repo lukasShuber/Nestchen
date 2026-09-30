@@ -270,11 +270,44 @@ export interface Feeding {
   createdBy: number | null;
 }
 
-export interface FeedingData {
+/** What every tracker (feeding, pumping, sleep) returns for a time range. */
+export interface TrackerData<T> {
   serverNow: number;
-  feedings: Feeding[];
-  running: Feeding | null;
-  last: Feeding | null;
+  sessions: T[];
+  running: T | null;
+  /** The most recent finished session. */
+  last: T | null;
+}
+
+export type FeedingData = TrackerData<Feeding>;
+
+// ---------------------------------------------------------------- pumping tracker
+
+export interface Pumping {
+  id: number;
+  startedAt: number;
+  endedAt: number | null;
+  side: FeedSide;
+  amountMl: number | null;
+  notes: string;
+  createdBy: number | null;
+}
+
+// ---------------------------------------------------------------- sleep tracker
+
+export type SleepKind = "nap" | "night";
+export type SleepPlace = "bed" | "parents" | "stroller" | "carrier" | "arms" | "car" | "other";
+export const SLEEP_KINDS: readonly SleepKind[] = ["nap", "night"];
+export const SLEEP_PLACES: readonly SleepPlace[] = ["bed", "parents", "stroller", "carrier", "arms", "car", "other"];
+
+export interface Sleep {
+  id: number;
+  startedAt: number;
+  endedAt: number | null;
+  kind: SleepKind;
+  place: SleepPlace | null;
+  notes: string;
+  createdBy: number | null;
 }
 
 // ---------------------------------------------------------------- to-do attributes

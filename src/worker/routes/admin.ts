@@ -20,7 +20,7 @@ import {
 } from "../db";
 import { notify, notifyText } from "../notify";
 import { occurrencesBetween, slotsBetween } from "../queries";
-import { registerFeedingRoutes } from "./feedings";
+import { registerTrackerRoutes } from "./tracking";
 import type { AppEnv } from "../types";
 import {
   ApiError,
@@ -50,7 +50,7 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-registerFeedingRoutes(app);
+registerTrackerRoutes(app);
 
 const idParam = (c: Context<AppEnv>) => int(c.req.param("id"), "id", 1, MAX_ID);
 const today = (c: Context<AppEnv>) => zonedNow(c.get("settings").timezone);
@@ -886,7 +886,7 @@ app.delete("/users/:id", async (c) => {
 
 app.get("/export", async (c) => {
   const db = c.env.DB;
-  const tables = ["slots", "visits", "events", "lists", "items", "claims", "feedings"] as const;
+  const tables = ["slots", "visits", "events", "lists", "items", "claims", "feedings", "pumpings", "sleeps"] as const;
   const results = await db.batch<Record<string, any>>(tables.map((t) => db.prepare(`SELECT * FROM ${t}`)));
   const data: Record<string, unknown> = { exportedAt: new Date().toISOString(), format: "nestchen-export-v1" };
   const { app_secret: _secret, ...settings } = c.get("settings");
