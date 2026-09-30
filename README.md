@@ -50,6 +50,7 @@ It runs for free on Cloudflare (Workers + D1 database). The code lives on GitHub
 | 🗓️ **Calendar** | Appointments in categories (doctor, Kita, paperwork, family, other), all-day and multi-day events, repeating events (daily … yearly), visits and open slots as layers, month and list view. |
 | 👥 **Visits** | Requests inbox (confirm / decline / reschedule), planned visits, visiting times (create many at once, e.g. "Sat + Sun 15–17 h for 3 weeks, in 1-hour slots"), past visits. After confirming, one tap sends a pre-written WhatsApp / SMS / e-mail in the guest's language. |
 | ✅ **Lists** | To-dos (due date, who's on it), shopping, wishlists (public or private), contacts (tap to call / WhatsApp), gifts, notes. Quick add understands `#tag`, `@name` and `!` (important). |
+| 🍼 **Feeding** | Start/stop with a live timer (synced between both phones), method (breast, breast with nipple shield, bottle, finger feeder), side with "other side next" suggestion, amount in ml, observations. Log or fix feeds afterwards. Statistics for 7/14/30 days: feeds per day, average duration, interval and longest break with trend vs. the period before, a daily chart, a 24-hour rhythm view, the split by method and a table. One-tap Start/Stop on the home screen. |
 | 🎀 **Thanks** | Who gave what, "received" ✓ and "thanked" ✓ – wishlist reservations appear automatically. |
 | ⚙️ **Settings** | Texts of the public page (German + English), what guests see, family code, calendar links, Google Calendar embed, notifications, accounts, JSON export. |
 
@@ -91,8 +92,13 @@ Your site is now live at `https://nestchen.<your-subdomain>.workers.dev`.
 
 The two parent accounts can only be created with a secret setup code:
 
-1. In Cloudflare open your Worker → **Settings → Variables and Secrets → Add**.
-2. Type **Secret**, name `SETUP_CODE`, value: any passphrase you like → **Deploy**.
+1. In Cloudflare open your Worker → **Settings**. Use the runtime variables section – it's called
+   **Runtime** or **Variables and Secrets** and sits right above **Bindings** (where `DB → nestchen-db` is listed).
+   Click **Add variable** (or **Add**).
+   ⚠️ Not the "Variables and secrets" box inside the **Build** section further down – those only exist
+   while the code is being built, the running site can't see them.
+2. Environment **Production**, key `SETUP_CODE`, value: any passphrase you like, tick **Secret**
+   → **Add variable and deploy** (or **Deploy**).
 
 ### 4. Create your accounts
 
@@ -135,6 +141,9 @@ From now on every `git push` to `main` redeploys automatically. Your data stays 
 - **Quick add** in lists: `Windeln Gr. 2 #dm @Mama !` adds a to-do tagged *dm*, assigned to Mama, marked important.
 - **Wishlist:** tap an item to see who reserved it, mark gifts as received and thanked, or hide items
   that are no longer needed.
+- **Feeding at night:** open the app (home screen) → "Start · Brust · rechts" is already suggested →
+  tap Start, later Stop, then optionally tap a couple of observations. Forgot to press Start?
+  "Mahlzeit nachtragen / Add a feed". Both parents see a running feed on their phones.
 
 ---
 
@@ -226,7 +235,9 @@ npm run dev                      # http://localhost:5173 (Worker + database run 
 - **Build complains about a missing `database_id`:** create the database yourself
   (Cloudflare → Storage & Databases → D1 → Create, name `nestchen-db`), copy its ID into
   `wrangler.jsonc` (`"database_id": "…"` next to `"database_name"`), commit and push.
-- **Setup says the SETUP_CODE is missing:** add the secret (step 3) and reload the page.
+- **Setup says the SETUP_CODE is missing:** add the secret (step 3) and reload the page. If you already
+  added it, it probably landed in the **Build** section's variables – add it under
+  **Settings → Variables and Secrets** instead (or run `npx wrangler secret put SETUP_CODE`).
 - **Forgot a password:** the other parent removes your account in Settings → Accounts and adds it again.
   If nobody can log in: Cloudflare → D1 → `nestchen-db` → Console → `DELETE FROM users WHERE username = 'name';`,
   then create the account again via `/family` with the setup code. No data is lost.

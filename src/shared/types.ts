@@ -241,3 +241,33 @@ export const CATEGORY_EMOJI: Record<Category, string> = {
   family: "💛",
   other: "📌",
 };
+
+// ---------------------------------------------------------------- feeding tracker
+
+export type FeedMethod = "breast" | "shield" | "bottle" | "finger";
+export type FeedSide = "left" | "right" | "both";
+export const FEED_METHODS: readonly FeedMethod[] = ["breast", "shield", "bottle", "finger"];
+export const FEED_SIDES: readonly FeedSide[] = ["left", "right", "both"];
+/** Methods where the side (left / right / both) is tracked. */
+export const isBreastMethod = (m: FeedMethod) => m === "breast" || m === "shield";
+/** Methods where an amount in ml makes sense. */
+export const hasAmount = (m: FeedMethod) => m === "bottle" || m === "finger";
+
+export interface Feeding {
+  id: number;
+  /** UTC timestamps (ms); endedAt is null while the feed is running. */
+  startedAt: number;
+  endedAt: number | null;
+  method: FeedMethod;
+  side: FeedSide | null;
+  amountMl: number | null;
+  notes: string;
+  createdBy: number | null;
+}
+
+export interface FeedingData {
+  serverNow: number;
+  feedings: Feeding[];
+  running: Feeding | null;
+  last: Feeding | null;
+}

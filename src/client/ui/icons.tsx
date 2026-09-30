@@ -38,10 +38,15 @@ const PATHS = {
   info: <><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.8v.1" /></>,
   link: <><path d="M10 14a4 4 0 0 0 5.7 0l3.1-3.1a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3.1 3.1a4 4 0 0 0 5.7 5.7l1-1" /></>,
   star: <path d="m12 3.5 2.6 5.4 5.9.8-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z" />,
+  bottle: <><path d="M10.5 4.8V3.9a1.5 1.5 0 0 1 3 0v.9" /><rect x="8.3" y="4.8" width="7.4" height="2.6" rx="1.1" /><path d="M9.2 7.4 8.2 10v9.3a2.2 2.2 0 0 0 2.2 2.2h3.2a2.2 2.2 0 0 0 2.2-2.2V10l-1-2.6" /><path d="M10.6 12.5h2.2M10.6 15.5h2.2" /></>,
+  play: <path d="M8 5.5v13l10.5-6.5z" />,
+  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" />,
   inbox: <><path d="M3.5 13.5 6 5.5a2 2 0 0 1 1.9-1.4h8.2A2 2 0 0 1 18 5.5l2.5 8" /><path d="M3.5 13.5V18a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-4.5h-5a3 3 0 0 1-6 0z" /></>,
 } as const;
 
 export type IconName = keyof typeof PATHS;
+
+const FILLED = new Set<IconName>(["play", "stop"]);
 
 export function Icon({ name, size = 20, class: cls }: { name: IconName; size?: number; class?: string }) {
   return (
@@ -50,7 +55,7 @@ export function Icon({ name, size = 20, class: cls }: { name: IconName; size?: n
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={FILLED.has(name) ? "currentColor" : "none"}
       stroke="currentColor"
       stroke-width="1.9"
       stroke-linecap="round"

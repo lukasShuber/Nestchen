@@ -78,3 +78,33 @@ export function babyAge(birth: string, today: string): string {
   const rest = months % 12;
   return rest ? tn("age.year", years) + and + tn("age.month", rest) : tn("age.year", years);
 }
+
+// ---------------------------------------------------------------- durations & instants
+
+/** "18 Min.", "2 Std. 5 Min.", "< 1 Min." */
+export function fmtDur(ms: number): string {
+  const total = Math.round(ms / 60_000);
+  if (ms < 60_000) return t("dur.lt1");
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (!h) return t("dur.m", { m });
+  return m ? t("dur.hm", { h, m }) : t("dur.h", { h });
+}
+
+/** Stopwatch style: "12:05" or "1:02:05". */
+export function fmtTimer(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const mm = pad2(Math.floor((s % 3600) / 60));
+  const ss = pad2(s % 60);
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+/** Wall-clock time ("14:32") of a UTC timestamp in the family's time zone. */
+export function clockTime(ms: number, tz: string): string {
+  return new Intl.DateTimeFormat("de-DE", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(ms);
+}
+
+export function fmtNumber(n: number, digits = 1, lang: Lang = getLang()): string {
+  return new Intl.NumberFormat(locale(lang), { maximumFractionDigits: digits }).format(n);
+}

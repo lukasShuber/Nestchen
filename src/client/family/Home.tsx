@@ -11,6 +11,7 @@ import { Avatar, Button, Check, Empty, ErrorBox, IconButton, Input, Loading } fr
 import { Icon } from "../ui/icons";
 import { toast } from "../ui/toast";
 import { EventSheet } from "./Calendar";
+import { FeedingWidget } from "./Feeding";
 import type { EventSheetState } from "./Calendar";
 import { Agenda, DueBadge, Page, VisitRow, buildAgenda, parseQuickAdd } from "./common";
 import { useFamily } from "./context";
@@ -92,6 +93,7 @@ export function Home() {
         <Loading />
       ) : (
         <div class="home-grid">
+          <FeedingWidget />
           {data.pending.length > 0 && (
             <section class="card card-accent">
               <h2 class="card-title">

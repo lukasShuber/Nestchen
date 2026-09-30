@@ -13,6 +13,7 @@ import { AuthScreen, Login, Setup } from "./Auth";
 import type { AuthState } from "./Auth";
 import { CalendarPage } from "./Calendar";
 import { FamilyContext, useFamily } from "./context";
+import { FeedingPage } from "./Feeding";
 import { Home } from "./Home";
 import { ListPage, ListsPage } from "./Lists";
 import { MorePage } from "./More";
@@ -140,6 +141,7 @@ function Shell({ path }: { path: string }) {
 
   const main: NavItem[] = [
     { href: "/family", icon: "home", label: t("nav.home") },
+    { href: "/family/feeding", icon: "bottle", label: t("nav.feeding") },
     { href: "/family/calendar", icon: "calendar", label: t("nav.calendar") },
     { href: "/family/visits", icon: "visits", label: t("nav.visits"), badge: badges.pending },
     { href: "/family/lists", icon: "list", label: t("nav.lists") },
@@ -212,6 +214,8 @@ function Route({ path }: { path: string }) {
   const list = p.match(/^\/family\/lists\/(\d+)$/);
   if (list) return <ListPage key={list[1]} id={Number(list[1])} />;
   switch (p) {
+    case "/family/feeding":
+      return <FeedingPage />;
     case "/family/calendar":
       return <CalendarPage />;
     case "/family/visits":

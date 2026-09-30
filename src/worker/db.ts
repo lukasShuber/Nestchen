@@ -5,6 +5,7 @@ import { TEXT_KEYS } from "../shared/types";
 import type {
   CalEvent,
   Claim,
+  Feeding,
   Item,
   Lang,
   List,
@@ -138,6 +139,21 @@ const MIGRATIONS: string[][] = [
     `CREATE INDEX IF NOT EXISTS claims_item ON claims(item_id)`,
     `INSERT OR IGNORE INTO settings (key, value) VALUES ('app_secret', lower(hex(randomblob(32))))`,
     `INSERT OR IGNORE INTO settings (key, value) VALUES ('ics_token', lower(hex(randomblob(20))))`,
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS feedings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      started_at INTEGER NOT NULL,
+      ended_at INTEGER,
+      method TEXT NOT NULL DEFAULT 'breast',
+      side TEXT,
+      amount_ml INTEGER,
+      notes TEXT NOT NULL DEFAULT '',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS feedings_started ON feedings(started_at)`,
   ],
 ];
 
@@ -437,4 +453,15 @@ export const mapClaim = (r: Row): Claim => ({
   received: !!r.received,
   thanked: !!r.thanked,
   createdAt: r.created_at,
+});
+
+export const mapFeeding = (r: Row): Feeding => ({
+  id: r.id,
+  startedAt: r.started_at,
+  endedAt: r.ended_at ?? null,
+  method: r.method,
+  side: r.side ?? null,
+  amountMl: r.amount_ml ?? null,
+  notes: r.notes,
+  createdBy: r.created_by ?? null,
 });

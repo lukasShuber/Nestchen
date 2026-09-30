@@ -39,15 +39,22 @@ const day = (n) => {
 
 // --- accounts
 const state = await call("/auth/state");
+let alreadySeeded = false;
 if (!state.hasUsers) await call("/auth/setup", { ...PAPA, setupCode: SETUP_CODE, lang: "de" });
 else await call("/auth/login", PAPA);
 const { users } = await call("/admin/users");
 if (!users.some((u) => u.username === MAMA.username)) await call("/admin/users", MAMA);
+alreadySeeded = (await call("/admin/lists")).lists.some((l) => l.kind === "wishlist" && l.total > 0);
 const all = (await call("/admin/users")).users;
 const papa = all.find((u) => u.username === "papa");
 const mama = all.find((u) => u.username === "mama");
 await call("/admin/users/me", { color: "sage" }, "PATCH");
 await call("/admin/settings", { birthDate: day(-23) }, "PUT");
+if (!alreadySeeded) await seedEverything();
+await seedFeedings();
+console.log(`Seeded ${BASE} ✓  (log in at ${BASE}/family as papa / dev-password)`);
+
+async function seedEverything() {
 
 // --- visiting times & meal train
 await call("/admin/slots", { kind: "visit", from: day(1), to: day(21), weekdays: [5, 6], start: "15:00", end: "17:00", split: 60, capacity: 1, note: "Gern kurz – das Baby schläft oft 😴" });
@@ -112,5 +119,63 @@ const phones = { "Kinderarzt / Kinderärztin": "030 5550101", Hebamme: "0176 555
 for (const c of contacts) if (phones[c.title]) await call(`/admin/items/${c.id}`, { phone: phones[c.title] }, "PATCH");
 
 await call("/admin/thanks/gifts", { title: "Selbstgestrickte Mütze", person: "Nachbarin Frau Kühn" });
+}
 
-console.log(`Seeded ${BASE} ✓  (log in at ${BASE}/family as papa / dev-password)`);
+// --- feeding tracker: two weeks of realistic feeds (only if there are none yet)
+async function seedFeedings() {
+  const existing = await call("/admin/feedings?days=30");
+  if (existing.feedings.length > 3) return;
+  const tz = "Europe/Berlin";
+  let seed = 42;
+  const rnd = () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+  const between = (a, b) => a + (b - a) * rnd();
+  const localHour = (ms) => Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", hourCycle: "h23" }).format(ms));
+  const MIN = 60_000;
+  const first = zonedToUtc(day(-14), "00:40", tz);
+  const until = Date.now() - 50 * MIN;
+  const notes = ["gut getrunken", "unruhig", "eingeschlafen", "Bäuerchen", "gespuckt", "gut getrunken, eingeschlafen"];
+  let side = "left";
+  for (let t = first; t < until; ) {
+    const dayIndex = (t - first) / 86_400_000;
+    const hour = localHour(t);
+    let method = dayIndex < 6 && rnd() < 0.55 ? "shield" : "breast";
+    if (dayIndex < 3 && rnd() < 0.15) method = "finger";
+    if (hour >= 19 && hour <= 21 && rnd() < 0.7) method = "bottle";
+    const breast = method === "breast" || method === "shield";
+    if (breast) side = rnd() < 0.12 ? "both" : side === "left" ? "right" : "left";
+    const minutes =
+      method === "bottle" ? between(8, 15) : method === "finger" ? between(15, 25) : between(14, 32) - dayIndex * 0.35;
+    const body = {
+      method,
+      side: breast ? side : null,
+      amountMl: method === "bottle" ? Math.round(between(70, 90) + dayIndex * 2.5) : method === "finger" ? Math.round(between(20, 40)) : null,
+      notes: rnd() < 0.25 ? notes[Math.floor(rnd() * notes.length)] : "",
+      startedAt: Math.round(t),
+      endedAt: Math.round(t + minutes * MIN),
+    };
+    if (body.endedAt >= until) break;
+    await call("/admin/feedings", body);
+    const night = hour >= 22 || hour < 5;
+    const interval = night ? between(180, 250) + dayIndex * 6 : between(135, 195);
+    t += interval * MIN;
+  }
+}
+
+function zonedToUtc(date, time, tz) {
+  const offset = (ms) => {
+    const p = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" })
+        .formatToParts(ms)
+        .map((x) => [x.type, x.value]),
+    );
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second) - ms;
+  };
+  const [y, m, d] = date.split("-").map(Number);
+  const [hh, mm] = time.split(":").map(Number);
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const first = guess - offset(guess);
+  return guess - offset(first);
+}
