@@ -1,42 +1,76 @@
 // Dialogs: a sheet (bottom sheet on phones, centred card on larger screens) and confirm().
+// Deliberately a plain fixed overlay instead of the native <dialog> element: the dialog's
+// "top layer" has had rendering bugs on iPhones (backdrop shown, sheet invisible).
 import type { ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useId, useRef, useState } from "preact/hooks";
 import { t } from "../lib/i18n";
 import { Button, IconButton, cls } from "./base";
 
+/** Open sheets, innermost last – only the top one reacts to Escape / Tab. */
+const stack: number[] = [];
+let nextId = 1;
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function trapFocus(e: KeyboardEvent, root: HTMLElement) {
+  const items = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (e.shiftKey && (document.activeElement === first || document.activeElement === root)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
 export function Sheet({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: ComponentChildren; children: ComponentChildren; wide?: boolean }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const pressedOnBackdrop = useRef(false);
+  const panel = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const titleId = useId();
+
   useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
-  }, [open]);
-  return (
-    <dialog
-      ref={ref}
-      autoFocus
-      class={cls("sheet", wide && "sheet-wide")}
-      onCancel={(e) => {
+    if (!open) return;
+    const id = nextId++;
+    stack.push(id);
+    const previous = document.activeElement as HTMLElement | null;
+    panel.current?.focus({ preventScroll: true });
+    document.documentElement.classList.add("sheet-open");
+    const onKey = (e: KeyboardEvent) => {
+      if (stack[stack.length - 1] !== id || !panel.current) return;
+      if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
-      }}
-      onMouseDown={(e) => (pressedOnBackdrop.current = e.target === ref.current)}
-      onClick={(e) => {
-        if (e.target === ref.current && pressedOnBackdrop.current) onClose();
-      }}
-    >
-      {open && (
+        closeRef.current();
+      } else if (e.key === "Tab") trapFocus(e, panel.current);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      stack.splice(stack.indexOf(id), 1);
+      if (!stack.length) document.documentElement.classList.remove("sheet-open");
+      previous?.focus?.({ preventScroll: true });
+    };
+  }, [open]);
+
+  if (!open) return null;
+  return (
+    <div class="sheet-layer">
+      <div class="sheet-backdrop" aria-hidden="true" onClick={onClose} />
+      <div ref={panel} class={cls("sheet", wide && "sheet-wide")} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div class="sheet-inner">
           <header class="sheet-head">
-            <h2 class="sheet-title">{title}</h2>
+            <h2 class="sheet-title" id={titleId}>
+              {title}
+            </h2>
             <IconButton icon="x" label={t("common.close")} onClick={onClose} />
           </header>
           <div class="sheet-body">{children}</div>
         </div>
-      )}
-    </dialog>
+      </div>
+    </div>
   );
 }
 
@@ -79,7 +113,7 @@ export function ConfirmHost() {
         <Button variant="secondary" onClick={() => done(false)}>
           {t("common.cancel")}
         </Button>
-        <Button variant={current?.danger ? "danger" : "primary"} onClick={() => done(true)} autoFocus>
+        <Button variant={current?.danger ? "danger" : "primary"} onClick={() => done(true)}>
           {current?.ok ?? (current?.danger ? t("common.delete") : t("common.yes"))}
         </Button>
       </SheetActions>
