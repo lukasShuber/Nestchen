@@ -381,6 +381,9 @@ input[type="date"].input::-webkit-date-and-time-value, input[type="time"].input:
   scrollbar-width: none;
 }
 .segmented::-webkit-scrollbar { display: none; }
+.segmented.fade-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+.segmented.fade-left { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
+.segmented.fade-left.fade-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
 .segment {
   display: inline-flex;
   align-items: center;
@@ -1207,9 +1210,9 @@ button.slot:hover { border-color: var(--line-2); }
 .chart .value-label { fill: var(--ink-2); font-family: var(--font); font-size: 12px; font-weight: 800; }
 .chart .bar { fill: var(--m, var(--feed)); transition: opacity 0.15s; }
 .chart .bar.is-hover { opacity: 0.72; }
-.chart .line { fill: none; stroke: var(--feed); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.chart .area { fill: var(--feed); opacity: 0.1; }
-.chart .dot { fill: var(--feed); stroke: var(--surface); stroke-width: 2; }
+.chart .line { fill: none; stroke: var(--m, var(--feed)); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .area { fill: var(--m, var(--feed)); opacity: 0.1; }
+.chart .dot { fill: var(--m, var(--feed)); stroke: var(--surface); stroke-width: 2; }
 .chart .crosshair { stroke: var(--ink-3); stroke-width: 1; }
 .chart .hit { fill: transparent; outline: none; }
 .chart .hit:focus-visible { fill: var(--focus); }
@@ -1304,6 +1307,34 @@ button.slot:hover { border-color: var(--line-2); }
 .sleep-control.is-running { border-color: color-mix(in srgb, var(--sleep-night) 40%, var(--line)); background: linear-gradient(180deg, color-mix(in srgb, var(--sleep-night) 14%, var(--surface)), var(--surface) 60%); }
 .sleep-control.is-running .feed-live { color: var(--ink-2); }
 .sleep-control.is-running .live-dot { background: var(--sleep-night); }
+
+/* Pumping: lavender from the validated method palette – it pairs with breastfeeding (coral). */
+:root { --pump: #8e7cc9; }
+[data-theme="dark"] { --pump: #8a7ad0; }
+.s-pump { --m: var(--pump); }
+
+/* Pause / continue next to Stop; a paused session's timer stands still. */
+.run-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.feed-control.is-paused { border-color: var(--line-2); background: var(--surface); }
+.feed-control.is-paused .feed-live { color: var(--ink-2); }
+.feed-control.is-paused .live-dot, .trk-row.is-paused .live-dot { background: var(--ink-3); animation: none; }
+.feed-control.is-paused .feed-timer { color: var(--ink-3); }
+.paused-tag { padding: 0 7px; border-radius: 999px; background: var(--bg-2); color: var(--ink-2); font-size: 0.7rem; font-weight: 800; }
+.trk-row.is-running.is-paused .trk-row-icon { background: var(--bg-2); color: var(--ink-2); }
+.trk-row.is-paused .trk-row-main { color: var(--ink-3); }
+.trk-row-action { display: flex; align-items: center; gap: 8px; }
+.pause-field .input { max-width: 140px; }
+
+/* People not to forget (visits). */
+.people { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.person { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.person + .person { border-top: 1px dashed var(--line-2); }
+.person-main { display: flex; flex: 1; flex-direction: column; min-width: 0; padding: 6px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.person-name { font-weight: 800; overflow-wrap: anywhere; }
+.person-sub { overflow: hidden; color: var(--ink-3); font-size: 0.85rem; text-overflow: ellipsis; white-space: nowrap; }
+.person.is-done .person-name { color: var(--ink-3); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.person-invited { flex: none; border: 0; background: var(--primary-soft); color: var(--primary-soft-ink); font: inherit; font-size: 0.82rem; font-weight: 750; cursor: pointer; }
+.card.is-quiet { background: var(--surface-2); box-shadow: none; }
 
 /* Füttern · Abpumpen · Schlaf switch – only on phones (the sidebar has these links). */
 .tracker-switch { display: none; }

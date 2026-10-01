@@ -49,10 +49,10 @@ It runs for free on Cloudflare (Workers + D1 database). The code lives on GitHub
 |---|---|
 | 🏠 **Home** | Greeting, baby's age, one-tap Start/Stop for feeding, sleep and pumping, open requests, the next 7 days, urgent to-dos, thank-you reminder. |
 | 🗓️ **Calendar** | Appointments in categories (doctor, Kita, paperwork, family, other), all-day and multi-day events, repeating events (daily … yearly), visits and open slots as layers, month and list view. |
-| 👥 **Visits** | Requests inbox (confirm / decline / reschedule), planned visits, visiting times (create many at once, e.g. "Sat + Sun 15–17 h for 3 weeks, in 1-hour slots"), past visits. After confirming, one tap sends a pre-written WhatsApp / SMS / e-mail in the guest's language. |
+| 👥 **Visits** | Requests inbox (confirm / decline / reschedule), planned visits, visiting times (create many at once, e.g. "Sat + Sun 15–17 h for 3 weeks, in 1-hour slots"), past visits. After confirming, one tap sends a pre-written WhatsApp / SMS / e-mail in the guest's language. "Nicht vergessen / Don't forget": a list of people who should meet the baby – invite them with a ready-made message (incl. the link and family code) and tick them off after their visit. |
 | ✅ **Lists** | To-dos with fixed labels – **who** (Lukas / Sandrine / Both), **priority** (high / mid / low) and your own – plus due date and free `#tags`; filter e.g. "high priority for Lukas" (remembered per list). Shopping, wishlists (public or private), contacts (tap to call / WhatsApp), gifts, notes. Quick add understands `#tag`, `@name` and `!` / `!high`. |
-| 🍼 **Feeding** | Start/stop with a live timer (synced between both phones), method (breast, breast with nipple shield, bottle, finger feeder), side with "other side next" suggestion, amount in ml, observations. Log or fix feeds afterwards. Statistics for 7/14/30 days: feeds per day, average duration, interval and longest break with trend vs. the period before, a daily chart, a 24-hour rhythm view, the split by method and a table. One-tap Start/Stop on the home screen. |
-| 💧 **Pumping** | Start/stop with a live timer, side (left / right / both), the amount with a slider (plus − / + for 5 ml steps), observations (e.g. "into the fridge", "frozen"). Statistics: ml per day and per session, sessions per day, duration, interval and pumping time per day with trends, charts, rhythm view and a table. |
+| 🍼 **Feeding** | Start/pause/stop with a live timer (synced between both phones; pauses don't count), method (breast, breast with nipple shield, bottle, finger feeder), side with "other side next" suggestion, amount in ml, observations. Log or fix feeds afterwards. Statistics for 7/14/30 days: feeds per day, average duration, interval and longest break with trend vs. the period before, a daily chart, a 24-hour rhythm view, the split by method and a table. One-tap Start/Stop on the home screen. |
+| 💧 **Pumping** | Start/pause/stop with a live timer, side (left / right / both), the amount with a slider (plus − / + for 5 ml steps), observations (e.g. "into the fridge", "frozen"). Statistics: ml per day and per session, sessions per day, duration, interval and pumping time per day with trends, charts, rhythm view and a table. Switch to "Mit Stillen / With breastfeeding" to count every time the breasts were emptied – pumping plus breastfeeding (breast and nipple shield). |
 | 🌙 **Sleep** | "Fell asleep" / "Woke up" with a live timer, day or night sleep (suggested by the time of day), where (crib, parents' bed, pram, carrier, in arms, car, elsewhere), observations. The history shows how long the baby was awake in between. Statistics: sleep per day, night and day sleep, naps per day, longest stretch and wake-ups per night with trends, a stacked day/night chart, where the baby slept, rhythm view and a table. |
 | 🎀 **Thanks** | Who gave what, "received" ✓ and "thanked" ✓ – wishlist reservations appear automatically. |
 | ⚙️ **Settings** | Texts of the public page (German + English), what guests see, family code, to-do labels, calendar links, Google Calendar embed, notifications, accounts, JSON export. |
@@ -162,6 +162,17 @@ From now on every `git push` to `main` redeploys automatically. Your data stays 
   the night after it, so Monday's night (even after midnight) counts for Monday.
 - **Pumping:** Start → Stop → set the amount with the slider → Fertig / Done. The home screen hides pumping
   after two weeks without a session (it stays under Baby → Abpumpen).
+- **Pause (feeding, pumping):** "Pause" stops the clock (e.g. burping or changing sides), "Weiter / Resume"
+  continues. On the home screen it's the small ⏸ button next to Stopp. Pressing Stopp while paused ends the
+  session when the pause began. Paused minutes don't count as feeding/pumping time and can be corrected in the
+  entry ("Pause (Min.)").
+- **Pumping statistics with breastfeeding:** in the statistics, switch "Nur Abpumpen / Mit Stillen". With
+  breastfeeding, every emptying of the breasts counts: pumping sessions plus breastfeeding with breast or nipple
+  shield. Breastfeeding and pumping within 30 minutes of each other (e.g. pumping the rest after a feed) count as
+  one emptying. Amounts (ml) always come from pumping only.
+- **People not to forget:** Besuche → "Nicht vergessen". Add names (and a phone number or e-mail if you like),
+  tap "Einladen" to send a prepared message with the link via WhatsApp, SMS or e-mail (or copy it) – the person
+  moves to "Eingeladen". Tick the circle once they've visited.
 - **Feeding at night:** open the app (home screen) → "▶ Brust · rechts" is already suggested →
   tap it, later Stop, then optionally tap a couple of observations. Forgot to press Start?
   "Mahlzeit nachtragen / Add a feed". Both parents see a running feed on their phones.
@@ -212,6 +223,10 @@ The messages contain only the guest's name and the date.
   Login, setup, unlock and all guest forms are rate-limited. Cross-site write requests are rejected.
 - IP addresses are never stored, only a salted hash for rate limiting.
 - A strict Content-Security-Policy, `X-Frame-Options`, `nosniff` and `Referrer-Policy` are set (`public/_headers`).
+- The private area (feeding, pumping, sleep, lists, people, export …) only answers to a logged-in parent; the
+  calendar feeds contain appointments and visits only, never tracker data.
+- **Your data survives updates:** the database is separate from the code. A `git push` replaces only the code;
+  database upgrades only ever add tables or columns, never delete anything.
 - **Backups:** Settings → Data → "Export everything (JSON)". Cloudflare D1 also keeps a point-in-time history
   (Time Travel) that you can restore from the dashboard.
 

@@ -43,13 +43,14 @@ const PATHS = {
   drop: <><path d="M12 3.5c-3 3.6-6 7.1-6 10.6a6 6 0 0 0 12 0c0-3.5-3-7-6-10.6z" /><path d="M9.2 14.4a2.9 2.9 0 0 0 2.4 2.7" /></>,
   baby: <><circle cx="12" cy="13" r="8" /><path d="M12 5c-.4-1.5.6-2.7 2.1-2.4" /><path d="M9.5 16.2c1.4 1 3.6 1 5 0" /><path d="M9 12.2v.1M15 12.2v.1" /></>,
   play: <path d="M8 5.5v13l10.5-6.5z" />,
+  pause: <><rect x="6.5" y="5.5" width="4" height="13" rx="1.4" /><rect x="13.5" y="5.5" width="4" height="13" rx="1.4" /></>,
   stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" />,
   inbox: <><path d="M3.5 13.5 6 5.5a2 2 0 0 1 1.9-1.4h8.2A2 2 0 0 1 18 5.5l2.5 8" /><path d="M3.5 13.5V18a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-4.5h-5a3 3 0 0 1-6 0z" /></>,
 } as const;
 
 export type IconName = keyof typeof PATHS;
 
-const FILLED = new Set<IconName>(["play", "stop"]);
+const FILLED = new Set<IconName>(["play", "stop", "pause"]);
 
 export function Icon({ name, size = 20, class: cls }: { name: IconName; size?: number; class?: string }) {
   return (

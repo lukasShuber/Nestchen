@@ -16,13 +16,35 @@ import type { IconName } from "../ui/icons";
 import { Sheet, SheetActions, confirmDialog } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { useFamily } from "./context";
-import { MINUTE, durationOf, trackerApi, useTick } from "./trackerData";
+import { MINUTE, activeMs, durationOf, isPaused, trackerApi, useTick } from "./trackerData";
 import type { Session, TrackerKind } from "./trackerData";
 
-/** The ticking stopwatch (re-renders only itself every second). */
-export function Elapsed({ since, now }: { since: number; now: () => number }) {
+/** The ticking stopwatch of a running session (pauses don't count; re-renders only itself). */
+export function Elapsed({ session, now }: { session: Session; now: () => number }) {
   useTick(1000);
-  return <>{fmtTimer(now() - since)}</>;
+  return <>{fmtTimer(activeMs(session, now()))}</>;
+}
+
+/** "running since 14:20" or "paused since 14:35". */
+export const liveText = (s: Session, tz: string) =>
+  isPaused(s) ? t("trk.pausedSince", { time: clockTime(s.pausedAt!, tz) }) : t("trk.runningSince", { time: clockTime(s.startedAt, tz) });
+
+/** "⏸ 5 min" for sessions with a pause. */
+export const pauseNote = (s: Session) => ((s.pausedMs ?? 0) >= MINUTE ? t("trk.pausedFor", { d: fmtDur(s.pausedMs!) }) : "");
+
+/** Pause / continue next to Stop (feeding, pumping). */
+export function RunningButtons({ session, busy, onPause, onResume, onStop }: { session: Session; busy: boolean; onPause: () => void; onResume: () => void; onStop: () => void }) {
+  const paused = isPaused(session);
+  return (
+    <div class="run-actions">
+      <Button variant="secondary" class="btn-xl" icon={paused ? "play" : "pause"} busy={busy} onClick={paused ? onResume : onPause}>
+        {paused ? t("trk.resume") : t("trk.pauseBtn")}
+      </Button>
+      <Button class="btn-xl btn-stop" icon="stop" busy={busy} onClick={onStop}>
+        {t("trk.stop")}
+      </Button>
+    </div>
+  );
 }
 
 /** Run an action with a busy flag; errors become a toast. */
@@ -119,7 +141,18 @@ export function Kpi({ label, value, delta, days }: { label: string; value: strin
 const RANGES = [7, 14, 30];
 
 /** The statistics card with its 7 / 14 / 30 day switch (remembered per tracker). */
-export function StatsCard({ storeKey, hint, children }: { storeKey: string; hint: string; children: (range: number) => ComponentChildren }) {
+export function StatsCard({
+  storeKey,
+  hint,
+  extra,
+  children,
+}: {
+  storeKey: string;
+  hint: string;
+  /** More controls under the hint (e.g. "with breastfeeding"). */
+  extra?: ComponentChildren;
+  children: (range: number) => ComponentChildren;
+}) {
   const [range, setRange] = useState<number>(() => {
     const saved = store.get<number>(storeKey, 7);
     return RANGES.includes(saved) ? saved : 7;
@@ -140,6 +173,7 @@ export function StatsCard({ storeKey, hint, children }: { storeKey: string; hint
         />
       </div>
       <p class="field-hint">{hint}</p>
+      {extra}
       {children(range)}
     </section>
   );
@@ -216,7 +250,9 @@ export function SessionHistory<T extends Session>({
                             <span class="feed-what">{r.what}</span>
                             {r.notes && <span class="feed-notes">{r.notes}</span>}
                           </span>
-                          <span class="feed-dur">{running ? <span class="badge badge-live">{t("trk.live")}</span> : fmtDur(durationOf(s))}</span>
+                          <span class="feed-dur">
+                            {running ? <span class="badge badge-live">{isPaused(s) ? t("trk.paused") : t("trk.live")}</span> : fmtDur(durationOf(s))}
+                          </span>
                         </button>
                         {older?.endedAt != null && s.startedAt > older.endedAt && (
                           <div class="feed-pause">{gap(s.startedAt - older.endedAt)}</div>
@@ -284,6 +320,7 @@ export function SessionForm<T extends Session>({
   observations,
   notesPh,
   deleteText,
+  pausable,
   children,
 }: {
   kind: TrackerKind;
@@ -297,6 +334,8 @@ export function SessionForm<T extends Session>({
   observations: Key[];
   notesPh: string;
   deleteText: string;
+  /** Show the "pause (min)" field (feeding, pumping). */
+  pausable?: boolean;
   children: ComponentChildren;
 }) {
   const { settings } = useFamily();
@@ -312,6 +351,8 @@ export function SessionForm<T extends Session>({
   const [start, setStart] = useState(initial.start);
   const [end, setEnd] = useState(initial.end);
   const [notes, setNotes] = useState(session?.notes ?? "");
+  const initialPause = Math.round((session?.pausedMs ?? 0) / MINUTE);
+  const [pause, setPause] = useState(initialPause ? String(initialPause) : "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const calls = trackerApi<T>(kind);
@@ -323,6 +364,12 @@ export function SessionForm<T extends Session>({
     setError(null);
     try {
       const body: Record<string, unknown> = { ...fields(), notes };
+      if (pausable) {
+        const minutes = pause.trim() === "" ? 0 : Number(pause);
+        if (!Number.isInteger(minutes) || minutes < 0) throw new ApiError(400, "invalid", "pausedMs");
+        // Only when changed, so a pause of e.g. 90 s isn't rounded away.
+        if (!session || minutes !== initialPause) body.pausedMs = minutes * MINUTE;
+      }
       if (!session || timesChanged) {
         if (!isDate(date) || !isTime(start) || !isTime(end)) throw new ApiError(400, "invalid", "startedAt");
         body.startedAt = zonedToUtc(date, start, tz);
@@ -363,6 +410,11 @@ export function SessionForm<T extends Session>({
       <Input type="time" value={end} onValue={setEnd} required aria-label={t("trk.endTime")} />
     </div>
   );
+  const pauseField = pausable && (
+    <Field label={t("trk.pauseField")} class="pause-field">
+      <Input type="number" inputMode="numeric" min={0} step={1} value={pause} onValue={setPause} placeholder="0" />
+    </Field>
+  );
 
   return (
     <form class="form" onSubmit={save}>
@@ -371,12 +423,14 @@ export function SessionForm<T extends Session>({
           {times}
         </Field>
       )}
+      {state.mode !== "finish" && pauseField}
       {children}
       <NotesField keys={observations} value={notes} onChange={setNotes} placeholder={notesPh} />
       {state.mode === "finish" && (
         <details class="adjust">
           <summary>{t("trk.adjustTimes")}</summary>
           {times}
+          {pauseField}
         </details>
       )}
       {error && <ErrorBox error={errorText(error)} />}
@@ -473,6 +527,7 @@ export function TrackerRow({
   icon,
   title,
   running,
+  paused,
   main,
   sub,
   children,
@@ -481,12 +536,13 @@ export function TrackerRow({
   icon: IconName;
   title: string;
   running: boolean;
+  paused?: boolean;
   main: ComponentChildren;
   sub?: ComponentChildren;
   children: ComponentChildren;
 }) {
   return (
-    <div class={cls("trk-row", running && "is-running")}>
+    <div class={cls("trk-row", running && "is-running", paused && "is-paused")}>
       <Link href={href} class="trk-row-link">
         <span class="trk-row-icon" aria-hidden="true">
           <Icon name={icon} size={20} />
@@ -494,7 +550,7 @@ export function TrackerRow({
         <span class="trk-row-info">
           <span class="trk-row-title">
             {title}
-            {running && <span class="live-dot" aria-hidden="true" />}
+            {paused ? <span class="paused-tag">{t("trk.paused")}</span> : running && <span class="live-dot" aria-hidden="true" />}
           </span>
           <span class="trk-row-main">{main}</span>
           {sub && <span class="trk-row-sub">{sub}</span>}

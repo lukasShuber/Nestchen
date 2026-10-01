@@ -164,7 +164,7 @@ function SleepControl({ trk, sessions, onFinished, onAdd }: { trk: Tracked<Sleep
           {t("sleep.asleepSince", { time: clockTime(running.startedAt, tz) })}
         </div>
         <div class="feed-timer">
-          <Elapsed since={running.startedAt} now={trk.now} />
+          <Elapsed session={running} now={trk.now} />
         </div>
         <KindPicker value={running.kind} onChange={(k) => changeRunning({ kind: k })} />
         <PlacePicker value={running.place} onChange={(p) => changeRunning({ place: p })} />
@@ -445,7 +445,7 @@ export function SleepRow() {
         icon="moon"
         title={t("sleep.title")}
         running={!!running}
-        main={!data ? "…" : running ? <Elapsed since={running.startedAt} now={trk.now} /> : awakeText(data.last, now)}
+        main={!data ? "…" : running ? <Elapsed session={running} now={trk.now} /> : awakeText(data.last, now)}
         sub={
           running
             ? `${describe(running)} · ${t("sleep.asleepSince", { time: clockTime(running.startedAt, tz) })}`

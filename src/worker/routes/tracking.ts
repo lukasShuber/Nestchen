@@ -23,6 +23,8 @@ interface Tracker {
   maxDuration: number;
   /** Error code for a session longer than maxDuration. */
   tooLong: string;
+  /** Can a running session be paused (feeding, pumping)? */
+  pausable: boolean;
   map: (r: Row) => unknown;
   /** Extra columns of a session started right now. */
   start: (body: Body) => Fields;
@@ -42,6 +44,7 @@ const feeding: Tracker = {
   table: "feedings",
   maxDuration: 8 * HOUR,
   tooLong: "feed_too_long",
+  pausable: true,
   map: mapFeeding,
   legacy: { one: "feeding", many: "feedings" },
   start: (b) => {
@@ -63,6 +66,7 @@ const pumping: Tracker = {
   table: "pumpings",
   maxDuration: 3 * HOUR,
   tooLong: "pump_too_long",
+  pausable: true,
   map: mapPumping,
   start: (b) => ({ side: oneOf(b.side, "side", FEED_SIDES, "both") }),
   fields: (b, row) => ({
@@ -78,6 +82,7 @@ const sleep: Tracker = {
   table: "sleeps",
   maxDuration: 16 * HOUR,
   tooLong: "sleep_too_long",
+  pausable: false,
   map: mapSleep,
   start: (b) => ({ kind: oneOf(b.kind, "kind", SLEEP_KINDS, "nap"), place: sleepPlace(b.place) }),
   fields: (b, row) => ({
@@ -95,6 +100,14 @@ function checkTimes(tr: Tracker, start: number, end: number | null) {
   if (end <= start) throw invalid("endedAt", "end_before_start");
   if (end - start > tr.maxDuration) throw invalid("endedAt", tr.tooLong);
   if (end > now + 5 * MINUTE) throw invalid("endedAt", "in_future");
+}
+
+/** Time paused within a finished session (ms) – it must leave some active time. */
+function pausedMs(tr: Tracker, body: Body, row: Row | null, start: number, end: number | null): number {
+  if (!tr.pausable) return 0;
+  const ms = "pausedMs" in body && body.pausedMs != null ? int(body.pausedMs, "pausedMs", 0, tr.maxDuration) : ((row?.paused_ms as number) ?? 0);
+  if (end != null && ms >= end - start) throw invalid("pausedMs", "pause_too_long");
+  return ms;
 }
 
 function register(app: Hono<AppEnv>, tr: Tracker) {
@@ -151,12 +164,36 @@ function register(app: Hono<AppEnv>, tr: Tracker) {
     const row = await find(c);
     if (row.ended_at == null) {
       const now = Date.now();
-      await c.env.DB.prepare(`UPDATE ${T} SET ended_at = ?, updated_at = ? WHERE id = ? AND ended_at IS NULL`)
-        .bind(Math.max(now, row.started_at + 1000), now, row.id)
+      // Stopped while paused: the session ended when the pause began.
+      const end = row.paused_at ?? now;
+      await c.env.DB.prepare(`UPDATE ${T} SET ended_at = ?, paused_at = NULL, updated_at = ? WHERE id = ? AND ended_at IS NULL`)
+        .bind(Math.max(end, row.started_at + 1000), now, row.id)
         .run();
     }
     return c.json(one(tr.map(await find(c))));
   });
+
+  if (tr.pausable) {
+    app.post(`${base}/:id/pause`, async (c) => {
+      const row = await find(c);
+      const now = Date.now();
+      await c.env.DB.prepare(`UPDATE ${T} SET paused_at = ?, updated_at = ? WHERE id = ? AND ended_at IS NULL AND paused_at IS NULL`)
+        .bind(now, now, row.id)
+        .run();
+      return c.json(one(tr.map(await find(c))));
+    });
+
+    app.post(`${base}/:id/resume`, async (c) => {
+      const row = await find(c);
+      const now = Date.now();
+      await c.env.DB.prepare(
+        `UPDATE ${T} SET paused_ms = paused_ms + MAX(0, ? - paused_at), paused_at = NULL, updated_at = ? WHERE id = ? AND ended_at IS NULL AND paused_at IS NOT NULL`,
+      )
+        .bind(now, now, row.id)
+        .run();
+      return c.json(one(tr.map(await find(c))));
+    });
+  }
 
   /** Log a session afterwards. */
   app.post(base, async (c) => {
@@ -164,7 +201,7 @@ function register(app: Hono<AppEnv>, tr: Tracker) {
     const start = int(body.startedAt, "startedAt", 0, MAX_ID);
     const end = int(body.endedAt, "endedAt", 0, MAX_ID);
     checkTimes(tr, start, end);
-    const cols = tr.fields(body, null);
+    const cols = { ...tr.fields(body, null), paused_ms: pausedMs(tr, body, null, start, end) };
     const names = Object.keys(cols);
     const now = Date.now();
     const res = await c.env.DB.prepare(
@@ -184,7 +221,7 @@ function register(app: Hono<AppEnv>, tr: Tracker) {
     const end = "endedAt" in body ? (body.endedAt == null ? null : int(body.endedAt, "endedAt", 0, MAX_ID)) : (row.ended_at as number | null);
     if (end == null && row.ended_at != null) throw invalid("endedAt", "required");
     checkTimes(tr, start, end);
-    const cols = tr.fields(body, row);
+    const cols = { ...tr.fields(body, row), paused_ms: pausedMs(tr, body, row, start, end) };
     const names = Object.keys(cols);
     await c.env.DB.prepare(`UPDATE ${T} SET started_at = ?, ended_at = ?, ${names.map((n) => `${n} = ?`).join(", ")}, updated_at = ? WHERE id = ?`)
       .bind(start, end, ...Object.values(cols), Date.now(), row.id)

@@ -84,7 +84,7 @@ function FamilyProvider({ me: initialMe, onLoggedOut, children }: { me: User; on
   const [data, setData] = useState<{ settings: Settings; users: User[] } | null>(null);
   const [failed, setFailed] = useState<unknown>(null);
   const [me, setMe] = useState(initialMe);
-  const [badges, setBadges] = useState({ pending: 0, thanks: 0 });
+  const [badges, setBadges] = useState({ pending: 0, thanks: 0, people: 0 });
 
   const reloadAccounts = async () => {
     const r = await api<{ settings: Settings; users: User[] }>("/admin/settings");
@@ -94,7 +94,7 @@ function FamilyProvider({ me: initialMe, onLoggedOut, children }: { me: User; on
     if (self) setMe(self);
   };
   const refreshBadges = () =>
-    api<{ pending: number; thanks: number }>("/admin/badges")
+    api<{ pending: number; thanks: number; people: number }>("/admin/badges")
       .then(setBadges)
       .catch(() => {});
 

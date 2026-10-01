@@ -14,6 +14,9 @@ export interface Session {
   startedAt: number;
   endedAt: number | null;
   notes: string;
+  /** Feeding and pumping can be paused: when the current pause began, and the time paused before. */
+  pausedAt?: number | null;
+  pausedMs?: number;
 }
 
 export const MINUTE = 60_000;
@@ -62,6 +65,8 @@ export const trackerApi = <T>(kind: TrackerKind) => ({
   patch: (id: number, body: Body) => api<{ session: T }>(`/admin/${kind}/${id}`, { method: "PATCH", body }),
   create: (body: Body) => api<{ session: T }>(`/admin/${kind}`, { body }),
   remove: (id: number) => api(`/admin/${kind}/${id}`, { method: "DELETE" }),
+  pause: (id: number) => api<{ session: T }>(`/admin/${kind}/${id}/pause`, { body: {} }),
+  resume: (id: number) => api<{ session: T }>(`/admin/${kind}/${id}/resume`, { body: {} }),
 });
 
 /** The loaded sessions plus the running one (which may have started before the loaded range). */
@@ -72,7 +77,12 @@ export function withRunning<T extends Session>(data: TrackerData<T>): T[] {
 
 export const localDate = (ms: number, tz: string) => zonedNow(tz, new Date(ms)).date;
 export const localMinutes = (ms: number, tz: string) => timeToMin(zonedNow(tz, new Date(ms)).time);
-export const durationOf = (s: Session) => (s.endedAt ?? s.startedAt) - s.startedAt;
+/** Active time of a finished session – pauses don't count (0 while it's running). */
+export const durationOf = (s: Session) => (s.endedAt == null ? 0 : Math.max(0, s.endedAt - s.startedAt - (s.pausedMs ?? 0)));
+/** Active time so far, also for a running (or paused) session. */
+export const activeMs = (s: Session, now: number) =>
+  s.endedAt != null ? durationOf(s) : Math.max(0, (s.pausedAt ?? now) - s.startedAt - (s.pausedMs ?? 0));
+export const isPaused = (s: Session | null | undefined) => s?.endedAt == null && s?.pausedAt != null;
 
 export const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 export const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);

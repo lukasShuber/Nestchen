@@ -20,6 +20,7 @@ import {
 } from "../db";
 import { notify, notifyText } from "../notify";
 import { occurrencesBetween, slotsBetween } from "../queries";
+import { registerPeopleRoutes } from "./people";
 import { registerTrackerRoutes } from "./tracking";
 import type { AppEnv } from "../types";
 import {
@@ -51,6 +52,7 @@ app.use("*", async (c, next) => {
 });
 
 registerTrackerRoutes(app);
+registerPeopleRoutes(app);
 
 const idParam = (c: Context<AppEnv>) => int(c.req.param("id"), "id", 1, MAX_ID);
 const today = (c: Context<AppEnv>) => zonedNow(c.get("settings").timezone);
@@ -138,9 +140,10 @@ app.get("/badges", async (c) => {
   const row = await c.env.DB.prepare(
     `SELECT (SELECT COUNT(*) FROM visits WHERE status = 'pending') AS pending,
             (SELECT COUNT(*) FROM claims WHERE thanked = 0) +
-            (SELECT COUNT(*) FROM items i JOIN lists l ON l.id = i.list_id WHERE l.kind = 'gifts' AND i.done = 0) AS thanks`,
-  ).first<{ pending: number; thanks: number }>();
-  return c.json({ pending: row?.pending ?? 0, thanks: row?.thanks ?? 0 });
+            (SELECT COUNT(*) FROM items i JOIN lists l ON l.id = i.list_id WHERE l.kind = 'gifts' AND i.done = 0) AS thanks,
+            (SELECT COUNT(*) FROM people WHERE status = 'open') AS people`,
+  ).first<{ pending: number; thanks: number; people: number }>();
+  return c.json({ pending: row?.pending ?? 0, thanks: row?.thanks ?? 0, people: row?.people ?? 0 });
 });
 
 // ---------------------------------------------------------------- calendar & events
@@ -886,7 +889,7 @@ app.delete("/users/:id", async (c) => {
 
 app.get("/export", async (c) => {
   const db = c.env.DB;
-  const tables = ["slots", "visits", "events", "lists", "items", "claims", "feedings", "pumpings", "sleeps"] as const;
+  const tables = ["slots", "visits", "events", "lists", "items", "claims", "feedings", "pumpings", "sleeps", "people"] as const;
   const results = await db.batch<Record<string, any>>(tables.map((t) => db.prepare(`SELECT * FROM ${t}`)));
   const data: Record<string, unknown> = { exportedAt: new Date().toISOString(), format: "nestchen-export-v1" };
   const { app_secret: _secret, ...settings } = c.get("settings");

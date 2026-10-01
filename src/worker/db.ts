@@ -10,6 +10,7 @@ import type {
   Lang,
   List,
   ListKind,
+  Person,
   Pumping,
   Settings,
   Sleep,
@@ -203,6 +204,30 @@ const MIGRATIONS: Migration[] = [
       updated_at INTEGER NOT NULL
     )`,
     `CREATE INDEX IF NOT EXISTS sleeps_started ON sleeps(started_at)`,
+  ],
+  // v5: pausing a running session (pause start + time paused before).
+  async (db) => {
+    for (const table of ["feedings", "pumpings", "sleeps"]) {
+      for (const column of ["paused_at INTEGER", "paused_ms INTEGER NOT NULL DEFAULT 0"]) {
+        try {
+          await db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column}`).run();
+        } catch (err) {
+          if (!/duplicate column/i.test(String(err))) throw err;
+        }
+      }
+    }
+  },
+  // v6: people not to forget (visits page).
+  [
+    `CREATE TABLE IF NOT EXISTS people (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      contact TEXT NOT NULL DEFAULT '',
+      note TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
   ],
 ];
 
@@ -546,6 +571,8 @@ export const mapFeeding = (r: Row): Feeding => ({
   amountMl: r.amount_ml ?? null,
   notes: r.notes,
   createdBy: r.created_by ?? null,
+  pausedAt: r.paused_at ?? null,
+  pausedMs: r.paused_ms ?? 0,
 });
 
 export const mapPumping = (r: Row): Pumping => ({
@@ -556,6 +583,17 @@ export const mapPumping = (r: Row): Pumping => ({
   amountMl: r.amount_ml ?? null,
   notes: r.notes,
   createdBy: r.created_by ?? null,
+  pausedAt: r.paused_at ?? null,
+  pausedMs: r.paused_ms ?? 0,
+});
+
+export const mapPerson = (r: Row): Person => ({
+  id: r.id,
+  name: r.name,
+  contact: r.contact,
+  note: r.note,
+  status: r.status,
+  createdAt: r.created_at,
 });
 
 export const mapSleep = (r: Row): Sleep => ({
@@ -566,4 +604,6 @@ export const mapSleep = (r: Row): Sleep => ({
   place: r.place ?? null,
   notes: r.notes,
   createdBy: r.created_by ?? null,
+  pausedAt: r.paused_at ?? null,
+  pausedMs: r.paused_ms ?? 0,
 });

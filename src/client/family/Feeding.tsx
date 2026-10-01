@@ -7,7 +7,7 @@ import { errorText } from "../lib/api";
 import { clockTime, dayShort, fmtDur, fmtNumber } from "../lib/format";
 import { t, tn } from "../lib/i18n";
 import type { Key } from "../lib/i18n";
-import { Button, Empty, ErrorBox, Field, Loading, Segmented, cls } from "../ui/base";
+import { Button, Empty, ErrorBox, Field, IconButton, Loading, Segmented, cls } from "../ui/base";
 import { Icon } from "../ui/icons";
 import { confirmDialog } from "../ui/sheet";
 import { toast } from "../ui/toast";
@@ -16,9 +16,25 @@ import { useFamily } from "./context";
 import { dailyStats, suggestNext, summarize } from "./feedingData";
 import type { DayStat } from "./feedingData";
 import { ColumnChart, LineChart, Rhythm, ShareBar, StatTable } from "./trackerCharts";
-import { change, durationOf, trackerApi, useSessions, useTick, withRunning } from "./trackerData";
+import { activeMs, change, durationOf, isPaused, trackerApi, useSessions, useTick, withRunning } from "./trackerData";
 import type { Tracked } from "./trackerData";
-import { AmountSlider, Elapsed, Kpi, SessionForm, SessionHistory, SessionSheet, StatsCard, TodayCard, TrackerRow, TrackerSwitch, agoText, useBusy } from "./trackerUi";
+import {
+  AmountSlider,
+  Elapsed,
+  Kpi,
+  RunningButtons,
+  SessionForm,
+  SessionHistory,
+  SessionSheet,
+  StatsCard,
+  TodayCard,
+  TrackerRow,
+  TrackerSwitch,
+  agoText,
+  liveText,
+  pauseNote,
+  useBusy,
+} from "./trackerUi";
 import type { SheetState } from "./trackerUi";
 
 const LONG_RUNNING = 2 * 3_600_000;
@@ -91,7 +107,7 @@ export function FeedingPage() {
         tz={tz}
         today={today}
         onOpen={(f) => setSheet({ mode: "edit", session: f })}
-        row={(f) => ({ cls: `m-${f.method}`, what: describe(f), notes: f.notes })}
+        row={(f) => ({ cls: `m-${f.method}`, what: describe(f), notes: [pauseNote(f), f.notes].filter(Boolean).join(" · ") })}
         dayMeta={(list) => `${tn("feed.count", list.length)} · ${fmtDur(list.reduce((sum, f) => sum + durationOf(f), 0))}`}
         gap={(ms) => t("trk.pause", { d: fmtDur(ms) })}
         empty={<Empty emoji="🍼" title={t("feed.empty")} />}
@@ -141,6 +157,12 @@ function FeedControl({ trk, onFinished, onAdd }: { trk: Tracked<Feeding>; onFini
       trk.setData({ ...data, running: r.session });
     });
 
+  const pauseOrResume = (pause: boolean) =>
+    run(async () => {
+      const r = await (pause ? calls.pause : calls.resume)(running!.id);
+      trk.setData({ ...data, running: r.session });
+    });
+
   const discard = async () => {
     if (!(await confirmDialog(t("feed.discardConfirm"), { danger: true, ok: t("trk.discard") }))) return;
     run(async () => {
@@ -153,13 +175,13 @@ function FeedControl({ trk, onFinished, onAdd }: { trk: Tracked<Feeding>; onFini
   if (running) {
     const tooLong = trk.now() - running.startedAt > LONG_RUNNING;
     return (
-      <section class="card feed-control is-running" aria-live="polite">
+      <section class={cls("card feed-control is-running", isPaused(running) && "is-paused")} aria-live="polite">
         <div class="feed-live">
           <span class="live-dot" aria-hidden="true" />
-          {t("trk.runningSince", { time: clockTime(running.startedAt, settings.timezone) })}
+          {liveText(running, settings.timezone)}
         </div>
         <div class="feed-timer">
-          <Elapsed since={running.startedAt} now={trk.now} />
+          <Elapsed session={running} now={trk.now} />
         </div>
         <MethodPicker value={running.method} onChange={(m) => changeRunning({ method: m, side: isBreastMethod(m) ? (running.side ?? "left") : null })} />
         {isBreastMethod(running.method) && <SidePicker value={running.side} onChange={(s) => changeRunning({ side: s })} />}
@@ -168,9 +190,7 @@ function FeedControl({ trk, onFinished, onAdd }: { trk: Tracked<Feeding>; onFini
             <Icon name="info" size={16} /> {t("feed.tooLong")}
           </p>
         )}
-        <Button class="btn-xl btn-stop" block icon="stop" busy={busy} onClick={stop}>
-          {t("trk.stop")}
-        </Button>
+        <RunningButtons session={running} busy={busy} onPause={() => pauseOrResume(true)} onResume={() => pauseOrResume(false)} onStop={stop} />
         <button type="button" class="text-btn center" onClick={discard}>
           {t("trk.discard")}
         </button>
@@ -216,7 +236,7 @@ function FeedControl({ trk, onFinished, onAdd }: { trk: Tracked<Feeding>; onFini
 
 function FeedToday({ feedings, tz, today, now }: { feedings: Feeding[]; tz: string; today: string; now: number }) {
   const todays = feedings.filter((f) => zonedNow(tz, new Date(f.startedAt)).date === today).sort((a, b) => a.startedAt - b.startedAt);
-  const total = todays.reduce((sum, f) => sum + ((f.endedAt ?? now) - f.startedAt), 0);
+  const total = todays.reduce((sum, f) => sum + activeMs(f, now), 0);
   const intervals = todays.slice(1).map((f, i) => f.startedAt - todays[i].startedAt);
   const avgInterval = intervals.length ? intervals.reduce((a, b) => a + b, 0) / intervals.length : null;
   return (
@@ -315,14 +335,14 @@ function FeedStats({ feedings, tz, today, now }: { feedings: Feeding[]; tz: stri
               items={feedings.map((f) => ({
                 startedAt: f.startedAt,
                 endedAt: f.endedAt,
-                aria: `${clockTime(f.startedAt, tz)}, ${fmtDur(durationOf(f))}`,
+                aria: `${clockTime(f.startedAt, tz)}, ${fmtDur(activeMs(f, now))}`,
                 tip: (
                   <>
                     <strong>
                       {clockTime(f.startedAt, tz)}–{f.endedAt ? clockTime(f.endedAt, tz) : "…"}
                     </strong>
                     <span>
-                      {fmtDur(durationOf(f))} · {describe({ ...f, amountMl: null })}
+                      {fmtDur(activeMs(f, now))} · {describe({ ...f, amountMl: null })}
                     </span>
                   </>
                 ),
@@ -381,6 +401,7 @@ function FeedForm({ state, defaults, onClose, onSaved }: { state: NonNullable<Sh
       observations={OBSERVATIONS}
       notesPh={t("feed.notesPh")}
       deleteText={t("feed.deleteConfirm")}
+      pausable
     >
       <Field group label={t("feed.how")}>
         <MethodPicker value={method} onChange={setMethod} />
@@ -419,6 +440,11 @@ export function FeedingRow() {
       trk.setData({ ...data!, running: null, last: r.session });
       setSheet({ mode: "finish", session: r.session });
     });
+  const pauseOrResume = () =>
+    run(async () => {
+      const r = await (isPaused(running) ? calls.resume : calls.pause)(running!.id);
+      trk.setData({ ...data!, running: r.session });
+    });
 
   return (
     <>
@@ -427,19 +453,25 @@ export function FeedingRow() {
         icon="bottle"
         title={t("feed.title")}
         running={!!running}
+        paused={isPaused(running)}
         main={
-          !data ? "…" : running ? <Elapsed since={running.startedAt} now={trk.now} /> : agoText(data.last?.startedAt ?? null, trk.now(), "trk.lastAgo", "trk.lastJustNow", "trk.none")
+          !data ? "…" : running ? <Elapsed session={running} now={trk.now} /> : agoText(data.last?.startedAt ?? null, trk.now(), "trk.lastAgo", "trk.lastJustNow", "trk.none")
         }
-        sub={
-          running
-            ? `${describe(running)} · ${t("trk.runningSince", { time: clockTime(running.startedAt, settings.timezone) })}`
-            : data?.last && `${describe(data.last)} · ${fmtDur(durationOf(data.last))}`
-        }
+        sub={running ? `${describe(running)} · ${liveText(running, settings.timezone)}` : data?.last && `${describe(data.last)} · ${fmtDur(durationOf(data.last))}`}
       >
         {running ? (
-          <Button class="btn-stop" icon="stop" busy={busy} onClick={stop}>
-            {t("trk.stop")}
-          </Button>
+          <>
+            <IconButton
+              icon={isPaused(running) ? "play" : "pause"}
+              label={isPaused(running) ? t("trk.resume") : t("trk.pauseBtn")}
+              class="icon-btn-soft"
+              disabled={busy}
+              onClick={pauseOrResume}
+            />
+            <Button class="btn-stop" icon="stop" busy={busy} onClick={stop}>
+              {t("trk.stop")}
+            </Button>
+          </>
         ) : (
           <Button icon="play" busy={busy} disabled={!data} onClick={start}>
             {describe({ ...suggestion, amountMl: null })}

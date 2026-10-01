@@ -29,9 +29,10 @@ import { Sheet, SheetActions, confirmDialog } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Page, VisitRow, visitEmoji } from "./common";
 import { useFamily } from "./context";
+import { PeopleList } from "./People";
 
-type Tab = "open" | "upcoming" | "slots" | "past";
-const TABS: Tab[] = ["open", "upcoming", "slots", "past"];
+type Tab = "open" | "upcoming" | "people" | "slots" | "past";
+const TABS: Tab[] = ["open", "upcoming", "people", "slots", "past"];
 
 export function VisitsPage() {
   const { badges, refreshBadges, settings } = useFamily();
@@ -72,10 +73,16 @@ export function VisitsPage() {
         <Segmented
           value={tab}
           onChange={changeTab}
-          options={TABS.map((k) => ({ value: k, label: t(`visits.tab.${k}`), badge: k === "open" ? badges.pending : undefined }))}
+          options={TABS.map((k) => ({
+            value: k,
+            label: t(`visits.tab.${k}`),
+            badge: k === "open" ? badges.pending : k === "people" ? badges.people : undefined,
+          }))}
         />
       </div>
-      {tab === "slots" ? (
+      {tab === "people" ? (
+        <PeopleList onChanged={refreshBadges} />
+      ) : tab === "slots" ? (
         <SlotList version={version} today={today} onSlot={setSlot} onAdd={() => setSheet("slots")} />
       ) : (
         <VisitList scope={tab} version={version} today={today} onVisit={setVisit} />
@@ -100,7 +107,7 @@ export function VisitsPage() {
   );
 }
 
-function VisitList({ scope, version, today, onVisit }: { scope: Exclude<Tab, "slots">; version: number; today: string; onVisit: (v: Visit) => void }) {
+function VisitList({ scope, version, today, onVisit }: { scope: Exclude<Tab, "slots" | "people">; version: number; today: string; onVisit: (v: Visit) => void }) {
   const { data, error, reload } = useLoad(() => api<{ visits: Visit[] }>(`/admin/visits?scope=${scope}`), [scope, version]);
   if (error) return <ErrorBox error={errorText(error)} onRetry={reload} />;
   if (!data) return <Loading />;

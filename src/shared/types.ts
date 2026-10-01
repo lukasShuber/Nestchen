@@ -258,7 +258,13 @@ export const isBreastMethod = (m: FeedMethod) => m === "breast" || m === "shield
 /** Methods where an amount in ml makes sense. */
 export const hasAmount = (m: FeedMethod) => m === "bottle" || m === "finger";
 
-export interface Feeding {
+/** Pausing a running session: when the current pause began, and the time paused before (ms). */
+export interface Pausable {
+  pausedAt: number | null;
+  pausedMs: number;
+}
+
+export interface Feeding extends Pausable {
   id: number;
   /** UTC timestamps (ms); endedAt is null while the feed is running. */
   startedAt: number;
@@ -283,7 +289,7 @@ export type FeedingData = TrackerData<Feeding>;
 
 // ---------------------------------------------------------------- pumping tracker
 
-export interface Pumping {
+export interface Pumping extends Pausable {
   id: number;
   startedAt: number;
   endedAt: number | null;
@@ -300,7 +306,7 @@ export type SleepPlace = "bed" | "parents" | "stroller" | "carrier" | "arms" | "
 export const SLEEP_KINDS: readonly SleepKind[] = ["nap", "night"];
 export const SLEEP_PLACES: readonly SleepPlace[] = ["bed", "parents", "stroller", "carrier", "arms", "car", "other"];
 
-export interface Sleep {
+export interface Sleep extends Pausable {
   id: number;
   startedAt: number;
   endedAt: number | null;
@@ -308,6 +314,20 @@ export interface Sleep {
   place: SleepPlace | null;
   notes: string;
   createdBy: number | null;
+}
+
+// ---------------------------------------------------------------- people not to forget (visits)
+
+export type PersonStatus = "open" | "invited" | "visited";
+export const PERSON_STATUSES: readonly PersonStatus[] = ["open", "invited", "visited"];
+
+export interface Person {
+  id: number;
+  name: string;
+  contact: string;
+  note: string;
+  status: PersonStatus;
+  createdAt: number;
 }
 
 // ---------------------------------------------------------------- to-do attributes

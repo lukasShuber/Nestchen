@@ -8,7 +8,7 @@ export interface FamilyCtx {
   settings: Settings;
   setSettings: (s: Settings) => void;
   reloadAccounts: () => Promise<void>;
-  badges: { pending: number; thanks: number };
+  badges: { pending: number; thanks: number; people: number };
   refreshBadges: () => void;
   logout: () => Promise<void>;
 }

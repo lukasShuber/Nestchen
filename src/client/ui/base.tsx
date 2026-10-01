@@ -1,6 +1,6 @@
 // Basic building blocks: buttons, form fields, chips, badges, avatars …
 import type { ComponentChildren, JSX } from "preact";
-import { useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { User, VisitStatus } from "../../shared/types";
 import { t } from "../lib/i18n";
 import { copyText } from "../lib/links";
@@ -183,8 +183,43 @@ export function Chip({ active, onClick, children, color, class: extra }: { activ
 }
 
 export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: ComponentChildren; badge?: number }[]; label?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [fade, setFade] = useState({ left: false, right: false });
+  // When the options don't fit (phones), it scrolls sideways: keep the active one in view and fade
+  // the cut-off edge, so it's clear there's more.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const left = el.scrollLeft > 1;
+      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setFade((f) => (f.left === left && f.right === right ? f : { left, right }));
+    };
+    const reveal = () => {
+      const active = el.querySelector<HTMLElement>(".is-active");
+      if (!active || el.scrollWidth <= el.clientWidth) return;
+      const a = active.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft;
+      const b = a + active.offsetWidth;
+      if (a < el.scrollLeft) el.scrollLeft = Math.max(0, a - 24);
+      else if (b > el.scrollLeft + el.clientWidth) el.scrollLeft = b - el.clientWidth + 24;
+    };
+    reveal();
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    // The options get wider once the web font has loaded – check again then.
+    const ro = new ResizeObserver(() => {
+      reveal();
+      update();
+    });
+    ro.observe(el);
+    for (const child of el.children) ro.observe(child);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [value, options.length]);
   return (
-    <div class="segmented" role="tablist" aria-label={label}>
+    <div ref={ref} class={cls("segmented", fade.left && "fade-left", fade.right && "fade-right")} role="tablist" aria-label={label}>
       {options.map((o) => (
         <button
           type="button"
